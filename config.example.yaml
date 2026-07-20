@@ -58,9 +58,10 @@ news:
   poll_seconds: 180
   rss_feeds:
     - "https://oilprice.com/rss/main"
-    - "https://www.investing.com/rss/commodities_Crude_Oil.rss"
     - "https://www.eia.gov/rss/todayinenergy.xml"
-    - "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
+    - "https://www.rigzone.com/news/rss/rigzone_latest.aspx"
+    # Google News query (keyless, broad, reliable). Tweak the query as you like.
+    - "https://news.google.com/rss/search?q=crude+oil+OPEC+WTI+Brent+when:2d&hl=en-US&gl=US&ceid=US:en"
   newsapi_enabled: false     # requires NEWSAPI_KEY in .env
   newsapi_query: "crude oil OR WTI OR Brent OR OPEC"
 
