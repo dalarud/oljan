@@ -382,6 +382,40 @@ kört, eftersom varje händelse lagras och "mognar" när dess horisonter passera
 De första dagarna rapporteras "för få mognade fall" och besluten vilar på
 chart + källkvalitet – detta är medvetet och ärligt (ingen påhittad statistik).
 
+### Vidareutvecklingar (avancerat)
+
+Sex moduler som skärper analysen. De tre första är på som standard; de tre
+sista kräver ett API/lite extra budget och är av som standard.
+
+- **Självövervakning / watchdog** (`watchdog.py`, på): spårar varje källas
+  träffar/fel och prisdatans färskhet, och skickar **en** avnotifierad varning
+  när insamlingen degraderar (plus ett återställt-meddelande). En tyst blind
+  fläck du litar på är farligare än en krasch. Hjärtslaget visar hälsoläget.
+- **Basoberoende nivåer + broker-ankare** (`analysis.py`, på): varje nivå visas
+  med sitt avstånd i **%/ATR**, vilket är oberoende av prisbasen — den delen är
+  alltid korrekt även när intradagsfeeden är en skalad ETF-estimat. Sätt
+  `position.broker_offset` (din UKOIL-kurs minus Oljans) för att kalibrera de
+  absoluta talen mot din mäklarskärm en gång.
+- **Träffsäkerhet / självutvärdering** (`evaluator.py`, på): varje skickad notis
+  poängsätts mot den faktiska prisrörelsen efter en horisont (default 1 h, utan
+  look-ahead). En periodisk "scorecard" visar precision totalt och per
+  konviktionsintervall. Valfri (av som standard) **självjustering** av
+  konviktionströskeln höjer ribban när marginalnotiserna inte är bättre än
+  slumpen — alltid annonserat, aldrig tyst, och klämt till [golv, tak].
+- **LLM-tolkning** (`llm.py`, av — kräver `ANTHROPIC_API_KEY`): skickar bara den
+  starkaste rubriken per story till en billig modell (`claude-haiku-4-5`) för en
+  kontextmedveten läsning: riktning, om det är en **konkret händelse** vs. bara
+  prat/hot, magnitud och en svensk motivering. Faller tyst tillbaka på nyckel-
+  ordslexikonet om avstängd eller vid fel. Sätt `llm.enabled: true`.
+- **Korstillgångar** (`crossasset.py`, av): avgör om en oljerörelse är
+  *oljespecifik* eller en bred *makrorörelse* genom att följa USD/aktier/guld
+  (ETF:er). När en fundamental oljerubriks pris-"bekräftelse" i själva verket
+  är hela makrokomplexet som rör sig ihop dämpas konviktionen och notisen säger
+  det. Sätt `cross_asset.enabled: true`.
+- **Strömmande vs. batch**: standarden är **samtidig batch-poll** (färre rörliga
+  delar, samma latens i praktiken). Strömmande kö-arkitektur finns kvar för
+  per-källa-kadenser via `news.stream_enabled: true`.
+
 ---
 
 ## Utöka systemet
