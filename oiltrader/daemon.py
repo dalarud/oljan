@@ -71,6 +71,8 @@ class Daemon:
         self.min_notify_score = cfg.get("notifications.min_notify_score", 2.5)
         self.always_notify_substantial = cfg.get(
             "notifications.always_notify_substantial", True)
+        self.max_news_age_min = cfg.get("news.max_age_minutes", 360)
+        self.cluster_sim = cfg.get("news.cluster_similarity", 0.4)
 
         base = cfg.get("general.loop_interval_seconds", 30)
         self.tasks = [
@@ -159,14 +161,14 @@ class Daemon:
                 if tf in tf_charts}
 
     def _task_news(self) -> None:
+        from .clustering import cluster_items
+        now = datetime.now(timezone.utc)
         chart = self._primary_chart(self.primary)
         mtf = self._mtf_trends(self.primary)
-        # On the very first run against a fresh DB the whole backlog looks
-        # "new"; seed it silently so we don't flood with dozens of alerts at
-        # once. Only genuinely new items after startup are pushed.
         primed = self.storage.get_meta("news_primed") == "1"
-        new_items = 0
-        processed = 0
+
+        # 1) Gather all NEW items across collectors.
+        fresh: list = []
         for collector in self.collectors:
             try:
                 items = list(collector.collect())
@@ -177,23 +179,39 @@ class Daemon:
                 if self.storage.seen(item.hash):
                     continue
                 self.storage.mark_seen(item.hash, item.source)
-                new_items += 1
                 if item.symbol is None:
                     item.symbol = self.primary
-                event = self.events.process(item, chart)
-                if event is None:
+                # Recency gate: intraday traders don't act on stale news.
+                ts = item.ts if item.ts.tzinfo else \
+                    item.ts.replace(tzinfo=timezone.utc)
+                age_min = (now - ts).total_seconds() / 60.0
+                if age_min > self.max_news_age_min:
                     continue
-                self.events.persist(event)
-                processed += 1
-                if primed:
-                    self._handle_event(event, chart, mtf)
+                fresh.append(item)
+
+        # 2) Cluster into cross-source stories (real corroboration + dedup).
+        stories = cluster_items(fresh, self.events.source_weight,
+                                sim=self.cluster_sim)
+
+        # 3) One event per story.
+        processed = 0
+        for story in stories:
+            event = self.events.process_story(story, chart, now)
+            if event is None:
+                continue
+            self.events.persist(event)
+            processed += 1
+            if primed:
+                self._handle_event(event, chart, mtf)
+
         if not primed:
             self.storage.set_meta("news_primed", "1")
-            log.info("news primed: seeded %d backlog items silently (%d "
-                     "relevant); future items will push.", new_items, processed)
-        elif new_items:
-            log.info("news pass: %d new items, %d relevant events",
-                     new_items, processed)
+            log.info("news primed: seeded %d items in %d stories silently (%d "
+                     "relevant); future items will push.", len(fresh),
+                     len(stories), processed)
+        elif fresh:
+            log.info("news pass: %d new items -> %d stories, %d relevant/pushed",
+                     len(fresh), len(stories), processed)
 
     def _task_mature(self) -> None:
         self.historical.mature_events()

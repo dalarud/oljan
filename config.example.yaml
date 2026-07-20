@@ -56,6 +56,9 @@ position:
 
 news:
   poll_seconds: 180
+  max_age_minutes: 360         # ignore news older than this (intraday focus)
+  freshness_halflife_minutes: 60  # freshness score halves every hour
+  cluster_similarity: 0.4      # story-clustering threshold (token Jaccard)
   rss_feeds:
     - "https://oilprice.com/rss/main"
     - "https://www.eia.gov/rss/todayinenergy.xml"

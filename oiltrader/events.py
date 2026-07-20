@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from .collectors.base import NewsItem
@@ -52,6 +52,13 @@ class Event:
     confidence: str                    # low | medium | high
     factors: dict[str, Any] = field(default_factory=dict)
     event_id: Optional[int] = None
+    # cross-source story context
+    sources: list[str] = field(default_factory=list)
+    source_times: list = field(default_factory=list)  # [(source, ts)] by ts
+    n_sources: int = 1
+    first_ts: Optional["Any"] = None   # earliest publication across sources
+    age_minutes: float = 0.0
+    freshness: float = 1.0             # 0..1, decays with age
 
     @property
     def symbol(self) -> Optional[str]:
@@ -72,21 +79,26 @@ class EventProcessor:
         self.confirm_candles = cfg.get("classification.confirmation_candles", 4)
         self.substance_threshold = cfg.get("classification.substance_threshold", 0.5)
         self.manip_threshold = cfg.get("classification.manipulation_threshold", 0.55)
+        self.freshness_halflife = cfg.get("news.freshness_halflife_minutes", 60)
+        # word-boundary matchers so "build" != "building", "api" != "capital"
+        self._kw_pat = {kw: _wb(kw) for kw in self.keywords}
+        self._cat_pat = {cat: [_wb(k) for k in kws]
+                         for cat, kws in CATEGORIES.items()}
 
     # --------------------------------------------------------------- relevance
     def relevance(self, item: NewsItem) -> float:
         text = item.text.lower()
         score = 0.0
         for kw, w in self.keywords.items():
-            if kw in text:
+            if self._kw_pat[kw].search(text):
                 score += w
         return round(score, 2)
 
     def categorise(self, item: NewsItem) -> str:
         text = item.text.lower()
         best, best_hits = "other", 0
-        for cat, kws in CATEGORIES.items():
-            hits = sum(1 for kw in kws if kw in text)
+        for cat, pats in self._cat_pat.items():
+            hits = sum(1 for p in pats if p.search(text))
             if hits > best_hits:
                 best, best_hits = cat, hits
         return best
@@ -105,66 +117,86 @@ class EventProcessor:
         return best_w if best_w is not None else self.source_weights.get("unknown", 0.4)
 
     # -------------------------------------------------------------- assessment
-    def process(self, item: NewsItem, chart: Optional[ChartContext]) -> Optional[Event]:
-        rel = self.relevance(item)
+    def process(self, item: NewsItem, chart: Optional[ChartContext],
+                now=None) -> Optional[Event]:
+        """Assess a single item (wraps it as a one-item story)."""
+        from .clustering import Story
+        st = Story()
+        toks, ents = set(), set()
+        st.add(item, toks, ents)
+        return self.process_story(st, chart, now)
+
+    def process_story(self, story, chart: Optional[ChartContext],
+                      now=None) -> Optional[Event]:
+        """Assess a clustered story (one or more items about the same event)."""
+        now = now or datetime.now(timezone.utc)
+        rep = story.representative(self.source_weight)
+        # relevance = the strongest item in the story
+        rel = max(self.relevance(it) for it in story.items)
         if rel < self.min_score:
             return None
 
-        sent = self.sentiment.analyze(item.text)
-        category = self.categorise(item)
+        sent = self.sentiment.analyze(rep.text)
+        category = self.categorise(rep)
         direction = sent.bias
         magnitude = sent.magnitude
 
         factors: dict[str, Any] = {}
 
-        # -- source credibility
-        src_w = self.source_weight(item.source)
-        factors["source_weight"] = src_w
+        # -- source credibility: use the MOST credible corroborating source
+        best_src_w = max(self.source_weight(s) for s in story.sources)
+        factors["source_weight"] = round(best_src_w, 2)
 
-        # -- corroboration: distinct sources reporting same category recently
-        since = item.ts - timedelta(minutes=self.corr_window)
-        recent = self.storage.recent_events(since, category=category)
-        distinct_sources = {e["source"] for e in recent
-                            if e.get("direction") == direction}
-        corroboration = len(distinct_sources)
-        corr_norm = min(corroboration / 2.0, 1.0)   # 2+ corroborating = full
+        # -- corroboration: distinct independent sources on the SAME story
+        corroboration = story.n_sources
+        corr_norm = min(max(corroboration - 1, 0) / 2.0, 1.0)  # 3+ sources = full
         factors["corroboration_sources"] = corroboration
 
-        # -- specificity: does it cite hard numbers/units?
-        specific = bool(_NUMBER_RE.search(item.text))
+        # -- specificity: does any item cite hard numbers/units?
+        specific = any(bool(_NUMBER_RE.search(it.text)) for it in story.items)
         factors["specific_numbers"] = specific
 
-        # -- price/volume confirmation: is the tape already moving the same way
-        #    on elevated volume? (real news tends to leave a footprint)
+        # -- price/volume confirmation
         confirmation = self._confirmation(chart, direction)
         factors["price_confirmation"] = round(confirmation, 2)
 
-        # ---- substance score (0..1): weighted, transparent
-        substance = (
-            0.40 * src_w
-            + 0.25 * corr_norm
-            + 0.15 * (1.0 if specific else 0.0)
-            + 0.20 * confirmation
-        )
-        substance = _clamp01(substance)
+        # -- recency / freshness (intraday: stale news is far less actionable)
+        first_ts = story.first_ts
+        if first_ts.tzinfo is None:
+            first_ts = first_ts.replace(tzinfo=timezone.utc)
+        first_by_src: dict[str, Any] = {}
+        for it in story.items:
+            ts = it.ts if it.ts.tzinfo else it.ts.replace(tzinfo=timezone.utc)
+            if it.source not in first_by_src or ts < first_by_src[it.source]:
+                first_by_src[it.source] = ts
+        source_times = sorted(first_by_src.items(), key=lambda kv: kv[1])
+        age_min = max((now - first_ts).total_seconds() / 60.0, 0.0)
+        freshness = 0.5 ** (age_min / max(self.freshness_halflife, 1))
+        factors["freshness"] = round(freshness, 2)
+        factors["age_minutes"] = round(age_min, 1)
 
-        # ---- manipulation / noise risk (0..1): a big claim from a weak,
-        #      uncorroborated, unconfirmed source is the classic red flag.
+        # ---- substance (0..1): truthiness of the claim
+        substance = _clamp01(
+            0.40 * best_src_w
+            + 0.30 * corr_norm
+            + 0.12 * (1.0 if specific else 0.0)
+            + 0.18 * confirmation
+        )
+
+        # ---- manipulation / noise risk (0..1)
         mag_norm = min(magnitude / 2.5, 1.0)
-        manipulation = mag_norm * (
-            0.5 * (1 - src_w)
+        manipulation = _clamp01(mag_norm * (
+            0.5 * (1 - best_src_w)
             + 0.3 * (1 - corr_norm)
             + 0.2 * (1 - confirmation)
-        )
-        manipulation = _clamp01(manipulation)
+        ))
 
         is_substantial = substance >= self.substance_threshold
         manip_flag = manipulation >= self.manip_threshold
-
-        confidence = self._confidence(substance, corroboration, src_w)
+        confidence = self._confidence(substance, corroboration, best_src_w)
 
         return Event(
-            item=item,
+            item=rep,
             relevance=rel,
             category=category,
             sentiment=sent,
@@ -176,6 +208,12 @@ class EventProcessor:
             manipulation_flag=manip_flag,
             confidence=confidence,
             factors=factors,
+            sources=story.sources,
+            source_times=source_times,
+            n_sources=corroboration,
+            first_ts=first_ts,
+            age_minutes=round(age_min, 1),
+            freshness=round(freshness, 3),
         )
 
     def _confirmation(self, chart: Optional[ChartContext], direction: str) -> float:
@@ -191,9 +229,10 @@ class EventProcessor:
 
     @staticmethod
     def _confidence(substance: float, corroboration: int, src_w: float) -> str:
-        if substance >= 0.65 and (corroboration >= 1 or src_w >= 0.9):
+        # Multiple independent sources on the same story is a strong signal.
+        if substance >= 0.6 and (corroboration >= 2 or src_w >= 0.9):
             return "high"
-        if substance >= 0.45:
+        if substance >= 0.45 or corroboration >= 2:
             return "medium"
         return "low"
 
@@ -214,7 +253,8 @@ class EventProcessor:
             "manipulation": event.manipulation,
             "confidence": event.confidence,
             "extra": {**event.factors, **event.item.extra,
-                      "matched": event.sentiment.matched},
+                      "matched": event.sentiment.matched,
+                      "sources": event.sources, "n_sources": event.n_sources},
         })
         event.event_id = eid
         return eid
@@ -222,3 +262,8 @@ class EventProcessor:
 
 def _clamp01(x: float) -> float:
     return max(0.0, min(1.0, x))
+
+
+def _wb(term: str) -> "re.Pattern":
+    """Word-boundary matcher for a keyword/phrase (alnum-boundary aware)."""
+    return re.compile(r"(?<![a-z0-9])" + re.escape(term.lower()) + r"(?![a-z0-9])")

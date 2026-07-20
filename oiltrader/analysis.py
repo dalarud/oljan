@@ -30,6 +30,8 @@ class Analysis:
     uncertainties: list[str] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
     suggested_stop: Optional[float] = None
+    conviction: int = 0             # 0..100 single triage number
+    action_short: str = ""          # crisp action headline
     message: str = ""
 
 
@@ -48,31 +50,60 @@ class Analyzer:
 
         mtf_trends = mtf_trends or {}
         assessment = self._assessment(event)
-        recommendation, stop = self._recommendation(event, chart, analogs,
-                                                    mtf_trends)
+        conviction = self._conviction(event, analogs, mtf_trends)
+        action_short, recommendation, stop = self._recommendation(
+            event, chart, analogs, mtf_trends)
         uncertainties = self._uncertainties(event, chart, analogs, mtf_trends)
         confidence = self._combined_confidence(event, analogs)
-
-        headline = self._headline(event)
-        sources = [event.item.source]
+        headline = self._headline(event, conviction, action_short)
 
         message = self._format_message(
             event, chart, analogs, headline, assessment, recommendation,
-            confidence, uncertainties, stop, mtf_trends)
+            confidence, uncertainties, stop, mtf_trends, conviction,
+            action_short)
 
         return Analysis(
             event=event, chart=chart, analogs=analogs, headline=headline,
             assessment=assessment, recommendation=recommendation,
             confidence=confidence, uncertainties=uncertainties,
-            sources=sources, suggested_stop=stop, message=message,
+            sources=event.sources or [event.item.source], suggested_stop=stop,
+            conviction=conviction, action_short=action_short, message=message,
         )
 
+    # ------------------------------------------------------------- conviction
+    def _conviction(self, event: Event, analogs: AnalogReport,
+                    mtf_trends: dict[str, str]) -> int:
+        """Single 0..100 triage number combining the transparent factors."""
+        best = analogs.best_horizon()
+        hist_edge = 0.0
+        if best and best.n >= self.historical.min_sample:
+            hist_edge = max(0.0, min((best.hit_rate - 0.5) * 2, 1.0))
+        aligned, conflicting, _ = self._mtf_alignment(event, mtf_trends)
+        n_tf = len(mtf_trends) or 0
+        mtf_frac = (aligned / n_tf) if n_tf else 0.5
+        src_w = float(event.factors.get("source_weight", 0.4))
+        corr_norm = min(max(event.n_sources - 1, 0) / 2.0, 1.0)
+        conv = 100 * (
+            0.30 * event.substance
+            + 0.20 * corr_norm
+            + 0.15 * event.freshness
+            + 0.10 * src_w
+            + 0.10 * hist_edge
+            + 0.15 * mtf_frac
+        )
+        if event.manipulation_flag:
+            conv *= 0.6
+        if event.direction == "neutral":
+            conv *= 0.5
+        return int(round(max(0.0, min(conv, 100.0))))
+
     # ------------------------------------------------------------- components
-    def _headline(self, event: Event) -> str:
-        dir_word = {"bullish": "hausse", "bearish": "baisse",
-                    "neutral": "neutral"}[event.direction]
-        return (f"[{event.category.upper()} · {dir_word}] "
-                f"{event.item.title.strip()[:200]}")
+    def _headline(self, event: Event, conviction: int, action: str) -> str:
+        dir_word = {"bullish": "HAUSSE", "bearish": "BAISSE",
+                    "neutral": "NEUTRAL"}[event.direction]
+        src = f" · {event.n_sources} källor" if event.n_sources > 1 else ""
+        return (f"[{dir_word} · konv {conviction}{src}] {action} — "
+                f"{event.item.title.strip()[:160]}")
 
     def _assessment(self, event: Event) -> str:
         s, m = event.substance, event.manipulation
@@ -118,43 +149,23 @@ class Analyzer:
 
     def _recommendation(self, event: Event, chart: Optional[ChartContext],
                         analogs: AnalogReport, mtf_trends: dict[str, str]):
+        """Return (action_short, detail_text, suggested_stop)."""
         lines: list[str] = []
         stop: Optional[float] = None
-        best = analogs.best_horizon()
-
-        aligned, conflicting, arrow_line = self._mtf_alignment(event, mtf_trends)
-        if arrow_line:
-            verdict = ("samsyn över tidsramar" if aligned and not conflicting
-                       else "blandad bild över tidsramar" if conflicting
-                       else "neutral över tidsramar")
-            lines.append(f"MTF-trend: {arrow_line}  ({verdict}).")
-
-        # Historical framing
-        if best and best.n > 0:
-            move = "fortsatt upp" if event.direction == "bullish" else "fortsatt ned"
-            lines.append(
-                f"Historik: vid liknande {event.category}-händelser ({event.direction}) "
-                f"gick priset {move} inom {best.horizon_h:g}h i {best.hit_pct()}% av "
-                f"{best.n} fall (median {best.median_return*100:+.1f}%).")
-        else:
-            lines.append(
-                "Historik: för få mognade analoga fall ännu – basera beslut på "
-                "chart + källkvalitet tills databasen byggts upp.")
 
         # Manipulation-first guardrail
         if event.manipulation_flag and not event.is_substantial:
+            action = "AVVAKTA – bekräfta först"
             lines.append(
-                "Åtgärd: agera INTE på enbart denna nyhet. Vänta på bekräftelse "
-                "(andra källor och/eller volym). Falska spikar reverserar ofta snabbt.")
+                "Agera INTE på enbart denna uppgift. Vänta på bekräftelse "
+                "(fler källor och/eller volym); falska spikar reverserar ofta snabbt.")
             if chart and chart.nearest_support:
                 stop = self._stop_for_long(chart)
                 lines.append(
-                    f"Skydd för x{self.leverage:g} long: håll en tight stop precis "
-                    f"under support {chart.nearest_support:.2f} "
-                    f"(~{stop:.2f}) för att inte fastna i en falsk rörelse.")
-            return "\n".join(lines), stop
+                    f"Om redan x{self.leverage:g} long: tight stop precis under "
+                    f"support {chart.nearest_support:.2f} (~{stop:.2f}).")
+            return action, "\n".join(lines), stop
 
-        # Substantial (or mixed) – give directional, position-aware advice
         aligns = ((event.direction == "bullish" and self.side == "long") or
                   (event.direction == "bearish" and self.side == "short"))
         against = ((event.direction == "bullish" and self.side == "short") or
@@ -166,21 +177,24 @@ class Analyzer:
                     else None)
 
         if aligns:
+            action = f"HÅLL/ÖKA {self.side}"
             lines.append(
-                f"Åtgärd: nyheten är i linje med din {self.side}. Överväg att "
-                f"hålla/öka gradvis; låt vinnare löpa mot närmaste "
-                f"{'motstånd' if self.side=='long' else 'stöd'}.")
+                f"I linje med din {self.side}. Överväg hålla/öka gradvis; låt "
+                f"vinnare löpa mot närmaste "
+                f"{'motstånd' if self.side == 'long' else 'stöd'}.")
         elif against:
+            action = f"MINSKA/HEDGA {self.side}"
             lines.append(
-                f"Åtgärd: nyheten går EMOT din {self.side}. Överväg att minska, "
-                f"hedga eller dra upp stoppen. Definiera din invalideringsnivå nu.")
+                f"EMOT din {self.side}. Överväg minska/hedga eller dra upp "
+                f"stoppen. Definiera invalideringsnivå nu.")
         else:
-            bias_word = "long" if event.direction == "bullish" else "short"
+            bias_word = "long" if event.direction == "bullish" else \
+                        "short" if event.direction == "bearish" else "ingen"
+            action = f"BEVAKA ({bias_word}-bias)" if bias_word != "ingen" else "BEVAKA"
             lines.append(
-                f"Åtgärd: du är flat. Om du vill ta position pekar signalen mot "
-                f"{bias_word}; vänta gärna på en retest av nyckelnivå för bättre R/R.")
+                f"Du är flat. Signalen pekar mot {bias_word}; avvakta gärna en "
+                f"retest av nyckelnivå för bättre R/R.")
 
-        # Concrete levels + leverage risk note
         if chart:
             if self.side in ("long", "flat") and chart.nearest_support:
                 lines.append(
@@ -196,7 +210,7 @@ class Analyzer:
                     f"≈ {lev_pct:.0f}% på marginalen vid x{self.leverage:g}.")
             lines.append(self._leverage_risk_note(chart))
 
-        return "\n".join(lines), stop
+        return action, "\n".join(lines), stop
 
     def _stop_for_long(self, chart: ChartContext) -> Optional[float]:
         base = chart.nearest_support if chart.nearest_support else chart.price
@@ -246,42 +260,105 @@ class Analyzer:
     # ------------------------------------------------------------- formatting
     def _format_message(self, event, chart, analogs, headline, assessment,
                         recommendation, confidence, uncertainties, stop,
-                        mtf_trends) -> str:
-        conf_emoji = {"high": "🟢", "medium": "🟡", "low": "🔴"}[confidence]
+                        mtf_trends, conviction, action_short) -> str:
+        bar = _conviction_bar(conviction)
         tf = self.cfg.get("market_data.analysis_timeframe", "")
-        parts = [f"🛢️ *OLJAN* {conf_emoji} konfidens: *{confidence.upper()}*",
-                 f"*{headline}*"]
+        fresh = _freshness_label(event)
 
+        # 1) Action-first banner + one-line TL;DR for fast triage.
+        parts = [f"🛢️ *{action_short}*  ·  konviktion *{conviction}/100* {bar}",
+                 f"*{headline}*",
+                 f"\n🎯 {self._tldr(event, confidence, fresh)}"]
+
+        # 2) Chart snapshot + multi-timeframe trend on one compact line.
         if chart:
+            _, _, arrows = self._mtf_alignment(event, mtf_trends)
+            line = (f"📊 {chart.symbol} {tf} {chart.price:.2f} · "
+                    f"trend {chart.trend} · RSI {chart.rsi:.0f} "
+                    f"({chart.rsi_state()}) · vol {chart.rel_volume:.1f}x")
+            if chart.nearest_support:
+                line += f" · stöd {chart.nearest_support:.2f}"
+            if chart.nearest_resistance:
+                line += f" · motstånd {chart.nearest_resistance:.2f}"
+            if arrows:
+                line += f"\nMTF: {arrows}"
+            parts.append(line)
+
+        # 3) Verdict (substance vs manipulation) + confidence, compact.
+        parts.append(
+            f"🔎 {self._verdict_word(event)} · substans {event.substance:.2f} · "
+            f"manip {event.manipulation:.2f} · konfidens {confidence.upper()}")
+
+        # 4) Historical base rate.
+        best = analogs.best_horizon()
+        if best and best.n > 0:
+            move = "upp" if event.direction == "bullish" else "ned"
             parts.append(
-                f"\n📊 *Chart* ({chart.symbol}"
-                + (f", {tf}" if tf else "") + f"): pris {chart.price:.2f}, "
-                f"trend {chart.trend}, RSI {chart.rsi:.0f} ({chart.rsi_state()}), "
-                f"rel.volym {chart.rel_volume:.1f}x"
-                + (f", stöd {chart.nearest_support:.2f}"
-                   if chart.nearest_support else "")
-                + (f", motstånd {chart.nearest_resistance:.2f}"
-                   if chart.nearest_resistance else ""))
+                f"📈 Historik: {move} inom {best.horizon_h:g}h i {best.hit_pct()}% "
+                f"av {best.n} liknande fall (median {best.median_return*100:+.1f}%).")
+        else:
+            parts.append("📈 Historik: för få mognade analoga fall ännu.")
 
-        parts.append(f"\n🔎 *Bedömning*\n{assessment}")
-        parts.append(f"\n🧭 *Rekommendation*\n{recommendation}")
+        # 5) Concrete recommendation detail.
+        parts.append(f"🧭 {recommendation}")
 
+        # 6) Sources with per-source timing + who was first (lead-time intel).
+        parts.append(self._sources_block(event))
+
+        # 7) Keywords, then uncertainties.
+        if event.sentiment.matched:
+            parts.append("🔬 Nyckelord: " + event.sentiment.explain())
         if uncertainties:
-            parts.append("\n⚠️ *Osäkerheter*\n- " + "\n- ".join(uncertainties))
+            parts.append("⚠️ " + "  ·  ".join(uncertainties))
+        parts.append("\n_Beslutsstöd, ej finansiell rådgivning._")
+        return "\n".join(parts)
 
-        published = event.item.ts
+    def _tldr(self, event, confidence, fresh) -> str:
+        n = event.n_sources
+        corr = (f"{n} källor bekräftar" if n > 1 else "1 källa (obekräftad)")
+        return f"{corr}, {fresh}. Substans {event.substance:.2f}/manip {event.manipulation:.2f}."
+
+    def _verdict_word(self, event) -> str:
+        if event.manipulation_flag and not event.is_substantial:
+            return "SANNOLIKT BRUS/MANIPULATION"
+        if event.is_substantial and not event.manipulation_flag:
+            return "SUBSTANSIELL"
+        if event.is_substantial and event.manipulation_flag:
+            return "BLANDAD (substans + risk)"
+        return "OKLAR/LÅG SIGNAL"
+
+    def _sources_block(self, event) -> str:
+        published = event.first_ts or event.item.ts
         if published.tzinfo is None:
             published = published.replace(tzinfo=timezone.utc)
         detected = datetime.now(timezone.utc)
-        parts.append(
-            f"\n📰 Källa: {event.item.source}\n"
-            f"🔗 Länk: {event.item.url or '(saknas)'}\n"
-            f"🕒 Publicerad: {published:%Y-%m-%d %H:%M UTC}  ·  "
-            f"upptäckt: {detected:%H:%M UTC} ({_fmt_latency(published, detected)})")
-        if event.sentiment.matched:
-            parts.append("🔬 Nyckelord: " + event.sentiment.explain())
-        parts.append("\n_Beslutsstöd, ej finansiell rådgivning._")
-        return "\n".join(parts)
+        if event.source_times:
+            listed = "  ·  ".join(
+                f"{src} {ts:%H:%M}" for src, ts in event.source_times[:5])
+            lead_src, lead_ts = event.source_times[0]
+            first = (f"\n⏱ Först: *{lead_src}* {lead_ts:%Y-%m-%d %H:%M UTC} "
+                     f"({_fmt_latency(lead_ts, detected)} sedan)")
+        else:
+            listed = event.item.source
+            first = ""
+        return (f"🗞 Källor ({event.n_sources}): {listed}{first}\n"
+                f"🔗 {event.item.url or '(länk saknas)'}")
+
+
+def _conviction_bar(conv: int) -> str:
+    filled = max(0, min(5, round(conv / 20)))
+    return "🟩" * filled + "⬜" * (5 - filled)
+
+
+def _freshness_label(event) -> str:
+    age = getattr(event, "age_minutes", 0.0)
+    if age < 1:
+        return "just nu"
+    if age < 60:
+        return f"färsk ({int(age)}m)"
+    if age < 1440:
+        return f"{age/60:.0f}h gammal"
+    return f"{age/1440:.0f}d gammal (inaktuell)"
 
 
 def _fmt_latency(published, detected) -> str:

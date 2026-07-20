@@ -310,14 +310,24 @@ För en riktig 24/7-drift rekommenderas dock systemd eller Docker.
 
 ## Hur analysen fungerar
 
-För varje ny, oläst källpost:
+Per pollning:
 
-1. **Relevans** – summan av matchade nyckelords vikter. Under tröskel → ignoreras.
+0. **Färskhetsgrind** – uppgifter äldre än `news.max_age_minutes` ignoreras
+   (intradagsfokus). **Story-klustring** slår sedan ihop samma händelse från
+   flera källor till *en* story → äkta korroborering + "vem var först".
+
+För varje story:
+
+1. **Relevans** – summan av matchade nyckelords vikter (ordgräns-matchning, så
+   "build" ≠ "building"). Under tröskel → ignoreras.
 2. **Riktning & storlek** – det olje-riktade lexikonet ger en signerad poäng
-   (hausse/baisse) och en magnitud. VADER används bara som svag sekundär signal.
+   (hausse/baisse) och magnitud, med **negationshantering** ("no ceasefire"
+   flippar). VADER används bara som svag sekundär signal.
 3. **Kategori** – inventory / opec / geopolitical / supply / macro.
-4. **Substans (0–1)** – vägt av: källvikt, korroborering (flera oberoende
-   källor inom ett tidsfönster), konkreta siffror, och pris/volym-bekräftelse.
+4. **Substans (0–1)** – vägt av: bästa källvikt i storyn, korroborering (antal
+   *oberoende källor på samma story*), konkreta siffror, och pris/volym-bekräftelse.
+   **Konviktion (0–100)** sammanfattar dessutom substans + korroborering +
+   färskhet + källvikt + historik + MTF-samsyn till ett enda triage-tal.
 5. **Manipulations-/brusrisk (0–1)** – hög när en *stor* påstådd effekt kommer
    från en *svag, obekräftad* källa *utan* stöd i tape:n (klassisk röd flagga).
 6. **Historik** – analoga tidigare fall (samma kategori + riktning) ger
@@ -333,17 +343,25 @@ För varje ny, oläst källpost:
 Exempel på notis (förkortad):
 
 ```
-🛢️ OLJAN 🟡 konfidens: MEDIUM
-[INVENTORY · hausse] Surprise US crude drawdown of 5.1M barrels, EIA data shows
-📊 Chart (CL=F, 5m): pris 77.33, trend up, RSI 80 (overbought), stöd 74.38
-🔎 Bedömning: SUBSTANSIELL. Substans=0.67, manipulationsrisk=0.38 ...
-🧭 Rekommendation:
-   MTF-trend: 1m ↑ · 5m ↑ · 15m ↑ · 1h ↑  (samsyn över tidsramar).
-   Historik: liknande fall gick upp inom 4h i 100% av 9 fall (median +3.5%).
-   Nyheten i linje med din long → överväg hålla/öka.
-   Stopp ~74.06 = 4.2% på priset ≈ 42% på marginalen vid x10 ...
-⚠️ Osäkerheter: ...
+🛢️ HÅLL/ÖKA long  ·  konviktion 68/100 🟩🟩🟩⬜⬜
+[HAUSSE · konv 68 · 3 källor] HÅLL/ÖKA long — Houthis Declare Naval Blockade...
+🎯 3 källor bekräftar, färsk (8m). Substans 0.70/manip 0.21.
+📊 CL=F 5m 80.71 · trend up · RSI 73 · vol 1.2x · stöd 79.45
+MTF: 1m ↑ · 5m ↑ · 15m ↑ · 1h →
+🔎 SUBSTANSIELL · substans 0.70 · manip 0.21 · konfidens HIGH
+📈 Historik: upp inom 15m i 91% av 11 liknande fall (median +0.3%).
+🧭 I linje med din long. Överväg hålla/öka; stop ~79.25 (≈18% på marginal vid x10).
+🗞 Källor (3): news.google 12:27 · rigzone 14:06 · oilprice 16:30
+⏱ Först: news.google 12:27 UTC (+5m sedan)
+🔗 https://oilprice.com/...
+⚠️ Korrelation ≠ kausalitet ... (ej finansiell rådgivning)
 ```
+
+**Notisen leder med handling.** Första raden ger allt för snabb triage: åtgärd
+(HÅLL/ÖKA / MINSKA/HEDGA / AVVAKTA / BEVAKA), en **konviktionspoäng 0–100** (väger
+substans, korroborering, färskhet, källvikt, historik och MTF-samsyn) och antal
+källor. Samma story från flera källor slås ihop till **en** notis med
+korsvis-bekräftelse och "vem var först"-tidsstämpel.
 
 **Så bygger historiken upp sig:** basraterna blir bättre ju längre systemet
 kört, eftersom varje händelse lagras och "mognar" när dess horisonter passerat.
