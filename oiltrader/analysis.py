@@ -56,13 +56,14 @@ class Analyzer:
 
     def build(self, event: Event, chart: Optional[ChartContext],
               mtf_trends: Optional[dict[str, str]] = None,
-              levels=None) -> Analysis:
+              levels=None, cross=None) -> Analysis:
         analogs = self.historical.analog_report(
             event.category, event.direction, exclude_event_id=event.event_id)
 
         mtf_trends = mtf_trends or {}
         assessment = self._assessment(event)
-        conviction = self._conviction(event, analogs, mtf_trends)
+        conviction = self._apply_cross(
+            self._conviction(event, analogs, mtf_trends), event, cross)
         action_short, recommendation, stop = self._recommendation(
             event, chart, analogs, mtf_trends)
         uncertainties = self._uncertainties(event, chart, analogs, mtf_trends)
@@ -73,10 +74,11 @@ class Analyzer:
             message = self._format_full(
                 event, chart, analogs, headline, assessment, recommendation,
                 confidence, uncertainties, stop, mtf_trends, conviction,
-                action_short, levels)
+                action_short, levels, cross)
         else:
             message = self._format_compact(
-                event, chart, conviction, action_short, confidence, levels)
+                event, chart, conviction, action_short, confidence, levels,
+                cross)
 
         return Analysis(
             event=event, chart=chart, analogs=analogs, headline=headline,
@@ -159,6 +161,21 @@ class Analyzer:
         if event.factors.get("is_action") is False:
             conv *= 0.75          # LLM read it as mere talk/threat, not action
         return int(round(max(0.0, min(conv, 100.0))))
+
+    # fundamental oil categories whose "price confirmation" is misleading when
+    # the whole macro complex is moving together.
+    _FUNDAMENTAL = {"inventory", "opec", "supply", "geopolitical"}
+
+    def _apply_cross(self, conviction: int, event: Event, cross) -> int:
+        """Temper conviction using the cross-asset regime (if available)."""
+        if cross is None or event.direction == "neutral":
+            return conviction
+        if cross.is_macro() and event.category in self._FUNDAMENTAL:
+            # the tape agrees, but it's macro doing the moving, not the oil story
+            conviction = int(round(conviction * 0.85))
+        elif cross.is_oil_specific():
+            conviction = int(round(min(conviction * 1.08, 100)))
+        return max(0, min(conviction, 100))
 
     # ------------------------------------------------------------- components
     def _headline(self, event: Event, conviction: int, action: str) -> str:
@@ -422,7 +439,7 @@ class Analyzer:
                 "neutral": "Neutral"}[event.direction]
 
     def _format_compact(self, event, chart, conviction, action_short,
-                        confidence, levels) -> str:
+                        confidence, levels, cross=None) -> str:
         published = event.first_ts or event.item.ts
         if published.tzinfo is None:
             published = published.replace(tzinfo=timezone.utc)
@@ -437,14 +454,24 @@ class Analyzer:
             f"\n💡 {self._plain_meaning(event)} {self._verdict_plain(event)}",
             self._price_line(chart, levels),
             self._action_line(event, chart, levels),
-            f"\n🔗 {event.item.url or '(länk saknas)'} · {published:%H:%M UTC}",
         ]
+        if cross is not None and cross.regime not in ("lugnt", "okänd"):
+            parts.append(f"🌐 {self._cross_tag(cross)}: {cross.note}")
+        parts.append(
+            f"\n🔗 {event.item.url or '(länk saknas)'} · {published:%H:%M UTC}")
         return "\n".join(parts)
+
+    @staticmethod
+    def _cross_tag(cross) -> str:
+        return {"oljespecifik": "Oljespecifik",
+                "makro-driven": "Makrovarning",
+                "delvis makro": "Delvis makro"}.get(cross.regime, "Makrokoll")
 
     # ------------------------------------------------------------- full format
     def _format_full(self, event, chart, analogs, headline, assessment,
                      recommendation, confidence, uncertainties, stop,
-                     mtf_trends, conviction, action_short, levels=None) -> str:
+                     mtf_trends, conviction, action_short, levels=None,
+                     cross=None) -> str:
         bar = _conviction_bar(conviction)
         tf = self.cfg.get("market_data.analysis_timeframe", "")
         fresh = _freshness_label(event)
@@ -502,6 +529,10 @@ class Analyzer:
         levels = self._levels_block(chart, stop)
         if levels:
             parts.append(levels)
+
+        # 5b) Cross-asset regime: is this oil-specific or the macro complex?
+        if cross is not None and cross.regime not in ("lugnt", "okänd"):
+            parts.append(f"🌐 {self._cross_tag(cross)}: {cross.note}")
 
         # 6) Sources with per-source timing + who was first (lead-time intel).
         parts.append(self._sources_block(event))

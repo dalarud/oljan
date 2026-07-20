@@ -18,6 +18,7 @@ from typing import Callable, Optional
 from .analysis import Analyzer
 from .charting import render_chart
 from .collectors import build_collectors
+from .crossasset import CrossAssetMonitor
 from .evaluator import AlertEvaluator
 from .events import EventProcessor
 from .historical import HistoricalEngine
@@ -63,6 +64,8 @@ class Daemon:
         self.collectors = build_collectors(cfg, self.storage)
         self.health = SourceHealth()
         self.evaluator = AlertEvaluator(cfg, self.storage, self.market)
+        self.crossasset = CrossAssetMonitor(
+            cfg, self.storage, cfg.primary_instrument["symbol"])
 
         self.symbols = [i["symbol"] for i in cfg.instruments]
         self.primary = cfg.primary_instrument["symbol"]
@@ -105,6 +108,9 @@ class Daemon:
         if cfg.get("watchdog.enabled", True):
             self.tasks.append(Task("watchdog", self._task_watchdog,
                                    cfg.get("watchdog.check_seconds", 300)))
+        if cfg.get("cross_asset.enabled", False):
+            self.tasks.append(Task("crossasset", self._task_crossasset,
+                                   cfg.get("cross_asset.refresh_seconds", 900)))
         if cfg.get("alert_eval.enabled", True):
             self.tasks.append(Task("score", self._task_score,
                                    cfg.get("alert_eval.score_seconds", 900)))
@@ -307,6 +313,9 @@ class Daemon:
     def _task_watchdog(self) -> None:
         self.watchdog.evaluate()
 
+    def _task_crossasset(self) -> None:
+        self.crossasset.refresh()
+
     def _task_score(self) -> None:
         self.evaluator.score_due()
         new_min = self.evaluator.maybe_tune(self.min_conviction)
@@ -363,7 +372,8 @@ class Daemon:
 
     def _handle_event(self, event, chart, mtf=None) -> None:
         levels = self._key_levels(chart)
-        analysis = self.analyzer.build(event, chart, mtf, levels)
+        cross = self.crossasset.snapshot()
+        analysis = self.analyzer.build(event, chart, mtf, levels, cross)
 
         # Gate on CONVICTION (not raw relevance) so low-signal, neutral or
         # single-source noise is suppressed; substantial + corroborated events

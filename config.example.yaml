@@ -329,6 +329,25 @@ alert_eval:
   tune_step: 5
   precision_floor: 0.45
 
+cross_asset:
+  # Distinguishes an oil-specific move from a broad macro/risk move by tracking
+  # a few liquid proxies (dollar, equities, gold via ETFs so they resolve on
+  # the same free feeds). When a fundamental oil headline's "price confirmation"
+  # is really the whole macro complex moving together, conviction is tempered
+  # and the alert says so; a genuinely oil-specific move is highlighted.
+  # Off by default (extra API calls); returns-only, so no basis/scaling issues.
+  enabled: false
+  interval: "15m"
+  lookback: "5d"
+  window_minutes: 60              # return window used to judge co-movement
+  refresh_seconds: 900
+  move_threshold_pct: 0.2         # below this, a move is treated as "flat"
+  stale_minutes: 90               # ignore a proxy whose last candle is older
+  proxies:
+    USD: "UUP"                    # dollar (typically inverse to oil)
+    Aktier: "SPY"                 # equities / risk-on-off
+    Guld: "GLD"                   # broad commodity / safe-haven bid
+
 historical:
   # Intraday-oriented horizons (in hours): 15m, 30m, 1h, 2h, 4h.
   horizons_hours: [0.25, 0.5, 1, 2, 4]
