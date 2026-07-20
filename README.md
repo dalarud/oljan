@@ -342,26 +342,40 @@ För varje story:
 
 Exempel på notis (förkortad):
 
+Standardläget (`verbosity: compact`) är kort och glanceable — 6 rader:
 ```
-🛢️ HÅLL/ÖKA long  ·  konviktion 68/100 🟩🟩🟩⬜⬜
-[HAUSSE · konv 68 · 3 källor] HÅLL/ÖKA long — Houthis Declare Naval Blockade...
-🎯 3 källor bekräftar, färsk (8m). Substans 0.70/manip 0.21.
-📊 CL=F 5m 80.71 · trend up · RSI 73 · vol 1.2x · stöd 79.45
-MTF: 1m ↑ · 5m ↑ · 15m ↑ · 1h →
-🔎 SUBSTANSIELL · substans 0.70 · manip 0.21 · konfidens HIGH
-📈 Historik: upp inom 15m i 91% av 11 liknande fall (median +0.3%).
-🧭 I linje med din long. Överväg hålla/öka; stop ~79.25 (≈18% på marginal vid x10).
-🗞 Källor (3): news.google 12:27 · rigzone 14:06 · oilprice 16:30
-⏱ Först: news.google 12:27 UTC (+5m sedan)
-🔗 https://oilprice.com/...
-⚠️ Korrelation ≠ kausalitet ... (ej finansiell rådgivning)
-```
+🟢 HAUSSE · konv 55 · just nu · 2 källor
+OPEC+ agrees surprise output cut of 1 million bpd
 
-**Notisen leder med handling.** Första raden ger allt för snabb triage: åtgärd
-(HÅLL/ÖKA / MINSKA/HEDGA / AVVAKTA / BEVAKA), en **konviktionspoäng 0–100** (väger
-substans, korroborering, färskhet, källvikt, historik och MTF-samsyn) och antal
-källor. Samma story från flera källor slås ihop till **en** notis med
-korsvis-bekräftelse och "vem var först"-tidsstämpel.
+💡 OPEC drar ned utbudet → normalt prispositivt. Bekräftat av 2 oberoende källor – bedöms substansiellt.
+📊 Brent (UKOIL) 81.62 (5m · est.) · dag 80.25–82.28 · igår 78.84–81.02 · VWAP 81.31
+🎯 Long-bias · motstånd 81.72 / 82.00 · stöd 81.50 / 81.33 · ogiltig < 81.50
+🔗 https://reuters.com/... · 19:46 UTC
+```
+- **Rad 1**: riktning, konviktion (0–100), färskhet, antal källor.
+- **💡 Vad det betyder**: en mening på vanlig svenska + brus/substans-dom.
+- **📊 Nivåer**: pris + *kanoniska* nivåer (dagens H/L, gårdagens H/L = PDH/PDL,
+  VWAP). Vid otillförlitlig/föråldrad data visas ingen nivå, bara en varning.
+- **🎯 Åtgärd**: bias + närmaste motstånd/stöd + ogiltignivå.
+
+Sätt `verbosity: full` för allt (MTF, historik, substans/manip-tal,
+hävstångsmatte, nyckelord, osäkerheter). Samma story från flera källor slås
+ihop till **en** notis med korsvis-bekräftelse och "vem var först".
+
+### Korrekthet, hastighet och OSINT (revision)
+- **Kanoniska nivåer** (`levels.py`): PDH/PDL/PDC, dagens H/L, VWAP och runda
+  nivåer — objektiva och allmänt bevakade, inte subjektiva fraktal-pivoter.
+- **Datavalidering**: varje notis kontrollerar att prisljuset är färskt och att
+  priset är rimligt. Föråldrad/orimlig data → inga nivåer, bara en varning.
+  Inga påhittade siffror – någonsin.
+- **Parallell insamling**: alla källor hämtas samtidigt med en tidsbudget, så en
+  trög källa (Nitter) aldrig blockerar snabba (RSS/GDELT). Poll var 60:e sekund.
+- **OSINT-ryggrad**: RSS + **GDELT** (nyckellös global nyhets-/OSINT-ström,
+  uppdateras ~var 15:e min) som pålitlig bas; kurerade X-konton via Nitter som
+  bonus (Nitter kan ligga nere). Stocktwits/Reddit av som standard (brus).
+- **Ärlig latensgräns**: gratis källor har ett golv på ~30–120 s (polling av
+  publika flöden). Verklig sub-sekund kräver betalda feeds (X API, Bloomberg,
+  Reuters). Systemet optimerar inom gratisgränsen och ljuger aldrig om data.
 
 **Så bygger historiken upp sig:** basraterna blir bättre ju längre systemet
 kört, eftersom varje händelse lagras och "mognar" när dess horisonter passerat.

@@ -73,6 +73,7 @@ class Daemon:
             "notifications.always_notify_substantial", True)
         self.max_news_age_min = cfg.get("news.max_age_minutes", 360)
         self.cluster_sim = cfg.get("news.cluster_similarity", 0.4)
+        self.collector_timeout = cfg.get("news.collector_timeout_seconds", 25)
 
         base = cfg.get("general.loop_interval_seconds", 30)
         self.tasks = [
@@ -184,27 +185,34 @@ class Daemon:
         mtf = self._mtf_trends(self.primary)
         primed = self.storage.get_meta("news_primed") == "1"
 
-        # 1) Gather all NEW items across collectors.
+        # 1) Gather NEW items across collectors CONCURRENTLY so a slow source
+        #    (e.g. Nitter) never delays fast ones (RSS/GDELT).
+        from concurrent.futures import (ThreadPoolExecutor, as_completed,
+                                        TimeoutError as FTimeout)
         fresh: list = []
-        for collector in self.collectors:
+        collected: list = []
+        with ThreadPoolExecutor(max_workers=min(8, len(self.collectors) or 1)) as ex:
+            futs = {ex.submit(c.collect): c.name for c in self.collectors}
             try:
-                items = list(collector.collect())
-            except Exception as e:
-                log.warning("Collector %s failed: %s", collector.name, e)
+                for fut in as_completed(futs, timeout=self.collector_timeout):
+                    try:
+                        collected.extend(list(fut.result()))
+                    except Exception as e:
+                        log.warning("collector %s failed: %s",
+                                    futs[fut], str(e)[:80])
+            except FTimeout:
+                log.warning("collectors exceeded %ss; using partial results",
+                            self.collector_timeout)
+        for item in collected:
+            if self.storage.seen(item.hash):
                 continue
-            for item in items:
-                if self.storage.seen(item.hash):
-                    continue
-                self.storage.mark_seen(item.hash, item.source)
-                if item.symbol is None:
-                    item.symbol = self.primary
-                # Recency gate: intraday traders don't act on stale news.
-                ts = item.ts if item.ts.tzinfo else \
-                    item.ts.replace(tzinfo=timezone.utc)
-                age_min = (now - ts).total_seconds() / 60.0
-                if age_min > self.max_news_age_min:
-                    continue
-                fresh.append(item)
+            self.storage.mark_seen(item.hash, item.source)
+            if item.symbol is None:
+                item.symbol = self.primary
+            ts = item.ts if item.ts.tzinfo else item.ts.replace(tzinfo=timezone.utc)
+            if (now - ts).total_seconds() / 60.0 > self.max_news_age_min:
+                continue
+            fresh.append(item)
 
         # 2) Cluster into cross-source stories (real corroboration + dedup).
         stories = cluster_items(fresh, self.events.source_weight,
@@ -253,8 +261,25 @@ class Daemon:
         self.storage.set_meta("last_heartbeat", ts)
 
     # ---------------------------------------------------------------- helpers
+    def _key_levels(self, chart):
+        if chart is None:
+            return None
+        from .levels import compute_levels
+        sym = chart.symbol
+        intr = self.storage.get_candles(sym, chart.timeframe or self.analysis_tf)
+        daily = self.storage.get_candles(sym, "1d")
+        if intr.empty:
+            return None
+        try:
+            return compute_levels(intr, daily if not daily.empty else None,
+                                  chart.price, self.cfg)
+        except Exception as e:
+            log.warning("level computation failed: %s", e)
+            return None
+
     def _handle_event(self, event, chart, mtf=None) -> None:
-        analysis = self.analyzer.build(event, chart, mtf)
+        levels = self._key_levels(chart)
+        analysis = self.analyzer.build(event, chart, mtf, levels)
 
         should_notify = (
             event.relevance >= self.min_notify_score

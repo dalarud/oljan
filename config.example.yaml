@@ -66,10 +66,13 @@ position:
   entry_price: null          # optional; enables PnL/liquidation-distance notes
 
 news:
-  poll_seconds: 180
-  max_age_minutes: 360         # ignore news older than this (intraday focus)
+  poll_seconds: 60             # how often to poll all sources (fast intraday)
+  collector_timeout_seconds: 25  # per-cycle budget; slow sources are skipped
+  max_age_minutes: 240         # ignore news older than this (intraday focus)
   freshness_halflife_minutes: 60  # freshness score halves every hour
   cluster_similarity: 0.4      # story-clustering threshold (token Jaccard)
+  gdelt_enabled: true          # keyless global news/OSINT firehose (~15min)
+  gdelt_query: ""              # blank = sensible oil default
   rss_feeds:
     - "https://oilprice.com/rss/main"
     - "https://www.eia.gov/rss/todayinenergy.xml"
@@ -87,7 +90,7 @@ social:
   reddit_enabled: false      # requires REDDIT_CLIENT_ID / SECRET in .env
   reddit_subreddits: ["oil", "energy", "commodities"]
   reddit_poll_seconds: 300
-  stocktwits_enabled: true   # best-effort, keyless (may rate-limit)
+  stocktwits_enabled: false  # off by default: high noise, low signal
   stocktwits_symbols: ["CL_F", "USOIL"]
   stocktwits_poll_seconds: 300
 
@@ -256,6 +259,8 @@ historical:
 
 notifications:
   channel: "ntfy"               # ntfy | telegram | console
+  verbosity: "compact"          # compact (short, glanceable) | full (all detail)
+  stale_after_minutes: 20       # price data older than this => no levels + warning
   send_charts: true
   min_notify_score: 2.5         # only push events at/above this relevance
   dedup_minutes: 30             # suppress near-duplicate notifications

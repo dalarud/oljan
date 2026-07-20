@@ -14,6 +14,7 @@ from .reddit import RedditCollector
 from .stocktwits import StocktwitsCollector
 from .newsapi import NewsApiCollector
 from .x import XCollector
+from .gdelt import GdeltCollector
 
 log = logging.getLogger("oljan.collectors")
 
@@ -24,6 +25,9 @@ def build_collectors(cfg, storage) -> list[Collector]:
     feeds = cfg.get("news.rss_feeds", []) or []
     if feeds:
         collectors.append(RssCollector(feeds))
+
+    if cfg.get("news.gdelt_enabled", True):
+        collectors.append(GdeltCollector(cfg.get("news.gdelt_query", "")))
 
     if cfg.get("news.newsapi_enabled", False):
         key = cfg.secret("NEWSAPI_KEY")

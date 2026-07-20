@@ -7,6 +7,7 @@ support/resistance detector with level clustering. No fitted/black-box models.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional
 
 import numpy as np
@@ -39,6 +40,8 @@ class ChartContext:
     n_candles: int = 0
     timeframe: str = ""           # interval the context was computed from
     source: str = ""              # data provider that served the candles
+    last_candle_age_min: float = 0.0
+    price_sane: bool = True        # price within a plausible oil band
 
     def rsi_state(self) -> str:
         if self.rsi >= 70:
@@ -151,6 +154,17 @@ def compute(df: pd.DataFrame, symbol: str, cfg,
     close = df["close"]
     price = float(close.iloc[-1])
 
+    # Data validation: candle freshness + price sanity (oil ~ $10-300/bbl).
+    try:
+        last_ts = df.index[-1]
+        if getattr(last_ts, "tzinfo", None) is None:
+            last_ts = last_ts.tz_localize("UTC")
+        age_min = max((datetime.now(timezone.utc) - last_ts.to_pydatetime())
+                      .total_seconds() / 60.0, 0.0)
+    except Exception:
+        age_min = 0.0
+    price_sane = 10.0 < price < 300.0
+
     ef = ema(close, ema_fast_p)
     es = ema(close, ema_slow_p)
     r = rsi(close, rsi_p)
@@ -206,4 +220,6 @@ def compute(df: pd.DataFrame, symbol: str, cfg,
         dist_to_resistance_pct=dist_res,
         n_candles=len(df),
         timeframe=timeframe,
+        last_candle_age_min=round(age_min, 1),
+        price_sane=price_sane,
     )

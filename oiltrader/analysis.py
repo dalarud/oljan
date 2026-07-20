@@ -42,12 +42,15 @@ class Analyzer:
         self.leverage = float(cfg.get("position.leverage", 1) or 1)
         self.side = str(cfg.get("position.side", "flat")).lower()
         self.entry = cfg.get("position.entry_price", None)
+        self.verbosity = str(cfg.get("notifications.verbosity", "compact")).lower()
+        self.stale_after_min = float(cfg.get("notifications.stale_after_minutes", 20))
         # symbol -> friendly name (e.g. BZ=F -> "Brent (UKOIL)")
         self.names = {i.get("symbol"): i.get("name", i.get("symbol"))
                       for i in getattr(cfg, "instruments", []) or []}
 
     def build(self, event: Event, chart: Optional[ChartContext],
-              mtf_trends: Optional[dict[str, str]] = None) -> Analysis:
+              mtf_trends: Optional[dict[str, str]] = None,
+              levels=None) -> Analysis:
         analogs = self.historical.analog_report(
             event.category, event.direction, exclude_event_id=event.event_id)
 
@@ -60,10 +63,14 @@ class Analyzer:
         confidence = self._combined_confidence(event, analogs)
         headline = self._headline(event, conviction, action_short)
 
-        message = self._format_message(
-            event, chart, analogs, headline, assessment, recommendation,
-            confidence, uncertainties, stop, mtf_trends, conviction,
-            action_short)
+        if self.verbosity == "full":
+            message = self._format_full(
+                event, chart, analogs, headline, assessment, recommendation,
+                confidence, uncertainties, stop, mtf_trends, conviction,
+                action_short, levels)
+        else:
+            message = self._format_compact(
+                event, chart, conviction, action_short, confidence, levels)
 
         return Analysis(
             event=event, chart=chart, analogs=analogs, headline=headline,
@@ -72,6 +79,40 @@ class Analyzer:
             sources=event.sources or [event.item.source], suggested_stop=stop,
             conviction=conviction, action_short=action_short, message=message,
         )
+
+    # --------------------------------------------------------- plain language
+    _MEANING = {
+        ("inventory", "bullish"): "Stramare utbud än väntat → normalt prispositivt.",
+        ("inventory", "bearish"): "Lageruppbyggnad/gott om utbud → normalt prisnegativt.",
+        ("opec", "bullish"): "OPEC drar ned utbudet → normalt prispositivt.",
+        ("opec", "bearish"): "OPEC ökar utbudet → normalt prisnegativt.",
+        ("geopolitical", "bullish"): "Hot mot utbud/leveranser → riskpremie upp, prispositivt.",
+        ("geopolitical", "bearish"): "Nedtrappning/fred → lägre riskpremie, prisnegativt.",
+        ("supply", "bullish"): "Utbudsstörning (produktion/export) → prispositivt.",
+        ("supply", "bearish"): "Ökat utbud/återstart → prisnegativt.",
+        ("macro", "bullish"): "Starkare efterfrågeutsikter/svagare USD → prispositivt.",
+        ("macro", "bearish"): "Svagare efterfrågan/recessionsoro → prisnegativt.",
+    }
+
+    def _plain_meaning(self, event: Event) -> str:
+        base = self._MEANING.get((event.category, event.direction))
+        if base:
+            return base
+        if event.direction == "bullish":
+            return "Tolkas som prispositivt för olja."
+        if event.direction == "bearish":
+            return "Tolkas som prisnegativt för olja."
+        return "Oklar prispåverkan – riktning ej fastställd."
+
+    def _verdict_plain(self, event: Event) -> str:
+        n = event.n_sources
+        if event.manipulation_flag and not event.is_substantial:
+            return f"⚠️ Ser ut som brus/rykte ({n} källa) – avvakta bekräftelse."
+        if n > 1 and event.is_substantial:
+            return f"Bekräftat av {n} oberoende källor – bedöms substansiellt."
+        if event.is_substantial:
+            return "Trovärdig källa – bedöms substansiellt."
+        return f"Endast {n} källa, obekräftat – behandla försiktigt."
 
     # ------------------------------------------------------------- conviction
     def _conviction(self, event: Event, analogs: AnalogReport,
@@ -288,10 +329,76 @@ class Analyzer:
         combined = min(order[event.confidence], order[analogs.confidence])
         return rev[combined]
 
-    # ------------------------------------------------------------- formatting
-    def _format_message(self, event, chart, analogs, headline, assessment,
-                        recommendation, confidence, uncertainties, stop,
-                        mtf_trends, conviction, action_short) -> str:
+    # -------------------------------------------------------- compact format
+    def _dir_emoji(self, event) -> str:
+        return {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪"}[event.direction]
+
+    def _price_line(self, chart, levels) -> str:
+        if chart is None:
+            return "📊 ⚠️ Ingen prisdata – inga nivåer."
+        stale = chart.last_candle_age_min > self.stale_after_min
+        if not chart.price_sane or stale:
+            why = ("orimligt pris" if not chart.price_sane
+                   else f"föråldrad ({chart.last_candle_age_min:.0f}m)")
+            return f"📊 ⚠️ Prisdata otillförlitlig ({why}) – nivåer utelämnas."
+        disp = self.names.get(chart.symbol, chart.symbol)
+        ctf = chart.timeframe or ""
+        est = " · est." if "scaled" in (chart.source or "") else \
+              " · dagsdata" if ctf == "1d" else ""
+        line = f"📊 {disp} {chart.price:.2f} ({ctf}{est})"
+        if levels:
+            if levels.day_high and levels.day_low:
+                line += f" · dag {levels.day_low:.2f}–{levels.day_high:.2f}"
+            if levels.pdh and levels.pdl:
+                line += f" · igår {levels.pdl:.2f}–{levels.pdh:.2f}"
+            if levels.vwap:
+                line += f" · VWAP {levels.vwap:.2f}"
+        return line
+
+    def _action_line(self, event, chart, levels) -> str:
+        if chart is None or not chart.price_sane \
+                or chart.last_candle_age_min > self.stale_after_min:
+            return f"🎯 {self._bias_word(event)} – agera på nivåer först när "\
+                   f"prisdata är tillförlitlig."
+        res = levels.resistances_above() if levels else \
+            [("nivå", r) for r in (chart.resistances or [])[:3]]
+        sup = levels.supports_below() if levels else \
+            [("nivå", s) for s in (chart.supports or [])[:3]]
+        r_txt = " / ".join(f"{v:.2f}" for _, v in res[:2]) or "inget ovanför"
+        s_txt = " / ".join(f"{v:.2f}" for _, v in sup[:2]) or "inget nedanför"
+        invalid = sup[0][1] if sup else None
+        inval_txt = f" · ogiltig < {invalid:.2f}" if invalid else ""
+        return (f"🎯 {self._bias_word(event)} · motstånd {r_txt} · "
+                f"stöd {s_txt}{inval_txt}")
+
+    def _bias_word(self, event) -> str:
+        return {"bullish": "Long-bias", "bearish": "Short-bias",
+                "neutral": "Neutral"}[event.direction]
+
+    def _format_compact(self, event, chart, conviction, action_short,
+                        confidence, levels) -> str:
+        published = event.first_ts or event.item.ts
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=timezone.utc)
+        dir_word = {"bullish": "HAUSSE", "bearish": "BAISSE",
+                    "neutral": "NEUTRAL"}[event.direction]
+        src = f" · {event.n_sources} källor" if event.n_sources > 1 else \
+              f" · {event.item.source}"
+        parts = [
+            f"{self._dir_emoji(event)} *{dir_word}* · konv {conviction} · "
+            f"{_freshness_label(event)}{src}",
+            f"*{event.item.title.strip()[:180]}*",
+            f"\n💡 {self._plain_meaning(event)} {self._verdict_plain(event)}",
+            self._price_line(chart, levels),
+            self._action_line(event, chart, levels),
+            f"\n🔗 {event.item.url or '(länk saknas)'} · {published:%H:%M UTC}",
+        ]
+        return "\n".join(parts)
+
+    # ------------------------------------------------------------- full format
+    def _format_full(self, event, chart, analogs, headline, assessment,
+                     recommendation, confidence, uncertainties, stop,
+                     mtf_trends, conviction, action_short, levels=None) -> str:
         bar = _conviction_bar(conviction)
         tf = self.cfg.get("market_data.analysis_timeframe", "")
         fresh = _freshness_label(event)
