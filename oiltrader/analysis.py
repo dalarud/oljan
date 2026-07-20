@@ -40,13 +40,16 @@ class Analyzer:
         self.side = str(cfg.get("position.side", "flat")).lower()
         self.entry = cfg.get("position.entry_price", None)
 
-    def build(self, event: Event, chart: Optional[ChartContext]) -> Analysis:
+    def build(self, event: Event, chart: Optional[ChartContext],
+              mtf_trends: Optional[dict[str, str]] = None) -> Analysis:
         analogs = self.historical.analog_report(
             event.category, event.direction, exclude_event_id=event.event_id)
 
+        mtf_trends = mtf_trends or {}
         assessment = self._assessment(event)
-        recommendation, stop = self._recommendation(event, chart, analogs)
-        uncertainties = self._uncertainties(event, chart, analogs)
+        recommendation, stop = self._recommendation(event, chart, analogs,
+                                                    mtf_trends)
+        uncertainties = self._uncertainties(event, chart, analogs, mtf_trends)
         confidence = self._combined_confidence(event, analogs)
 
         headline = self._headline(event)
@@ -54,7 +57,7 @@ class Analyzer:
 
         message = self._format_message(
             event, chart, analogs, headline, assessment, recommendation,
-            confidence, uncertainties, stop)
+            confidence, uncertainties, stop, mtf_trends)
 
         return Analysis(
             event=event, chart=chart, analogs=analogs, headline=headline,
@@ -96,11 +99,34 @@ class Analyzer:
         return (f"{verdict}\nSubstans={s:.2f}, manipulationsrisk={m:.2f} "
                 f"({driver_txt}).")
 
+    def _mtf_alignment(self, event: Event, mtf_trends: dict[str, str]):
+        """Return (aligned, conflicting, arrow_line) across timeframes."""
+        want = "up" if event.direction == "bullish" else \
+               "down" if event.direction == "bearish" else None
+        arrows = {"up": "↑", "down": "↓", "sideways": "→"}
+        parts, aligned, conflicting = [], 0, 0
+        for tf, tr in mtf_trends.items():
+            parts.append(f"{tf} {arrows.get(tr, '→')}")
+            if want is None:
+                continue
+            if tr == want:
+                aligned += 1
+            elif tr != "sideways":
+                conflicting += 1
+        return aligned, conflicting, " · ".join(parts)
+
     def _recommendation(self, event: Event, chart: Optional[ChartContext],
-                        analogs: AnalogReport):
+                        analogs: AnalogReport, mtf_trends: dict[str, str]):
         lines: list[str] = []
         stop: Optional[float] = None
         best = analogs.best_horizon()
+
+        aligned, conflicting, arrow_line = self._mtf_alignment(event, mtf_trends)
+        if arrow_line:
+            verdict = ("samsyn över tidsramar" if aligned and not conflicting
+                       else "blandad bild över tidsramar" if conflicting
+                       else "neutral över tidsramar")
+            lines.append(f"MTF-trend: {arrow_line}  ({verdict}).")
 
         # Historical framing
         if best and best.n > 0:
@@ -188,7 +214,8 @@ class Analyzer:
                 f"mot dig ≈ likvidation (grovt). Det är bara ~{atr_moves:.1f} ATR – "
                 f"håll marginal och undvik överexponering runt nyheter.")
 
-    def _uncertainties(self, event: Event, chart, analogs) -> list[str]:
+    def _uncertainties(self, event: Event, chart, analogs,
+                       mtf_trends: dict[str, str]) -> list[str]:
         u: list[str] = []
         if analogs.total_samples < self.historical.min_sample:
             u.append(f"Litet historiskt urval (n={analogs.total_samples}); "
@@ -201,6 +228,10 @@ class Analyzer:
             u.append("Oklar riktning – lexikonet gav ingen tydlig bias.")
         if event.manipulation_flag:
             u.append("Förhöjd manipulations-/brusrisk.")
+        _, conflicting, _ = self._mtf_alignment(event, mtf_trends)
+        if conflicting:
+            u.append("Tidsramarna pekar åt olika håll – vänta på samsyn eller "
+                     "handla mindre.")
         u.append("Korrelation ≠ kausalitet; historiska mönster upprepas inte "
                  "garanterat. Detta är beslutsstöd, inte finansiell rådgivning.")
         return u
@@ -213,14 +244,17 @@ class Analyzer:
 
     # ------------------------------------------------------------- formatting
     def _format_message(self, event, chart, analogs, headline, assessment,
-                        recommendation, confidence, uncertainties, stop) -> str:
+                        recommendation, confidence, uncertainties, stop,
+                        mtf_trends) -> str:
         conf_emoji = {"high": "🟢", "medium": "🟡", "low": "🔴"}[confidence]
+        tf = self.cfg.get("market_data.analysis_timeframe", "")
         parts = [f"🛢️ *OLJAN* {conf_emoji} konfidens: *{confidence.upper()}*",
                  f"*{headline}*"]
 
         if chart:
             parts.append(
-                f"\n📊 *Chart* ({chart.symbol}): pris {chart.price:.2f}, "
+                f"\n📊 *Chart* ({chart.symbol}"
+                + (f", {tf}" if tf else "") + f"): pris {chart.price:.2f}, "
                 f"trend {chart.trend}, RSI {chart.rsi:.0f} ({chart.rsi_state()}), "
                 f"rel.volym {chart.rel_volume:.1f}x"
                 + (f", stöd {chart.nearest_support:.2f}"

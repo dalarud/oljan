@@ -5,8 +5,9 @@ requests>=2.31
 numpy>=1.24
 pandas>=2.0
 
-# Market data
-yfinance>=0.2.40
+# Market data: the default "yahoo" provider uses only `requests` (above).
+# yfinance is OPTIONAL – only needed if you set market_data.provider: yfinance.
+# yfinance>=0.2.40
 
 # News / feeds (optional: RSS collector falls back to a stdlib parser if
 # feedparser is unavailable, but feedparser gives better coverage).

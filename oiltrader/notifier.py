@@ -1,8 +1,9 @@
-"""Notifications: Telegram (near-realtime, free) with console fallback.
+"""Notifications: ntfy (recommended) / Telegram / console.
 
-Handles dedup (don't re-push the same story), quiet hours, and optional chart
-images. Telegram is the recommended free channel: create a bot with @BotFather,
-put the token + your chat id in .env.
+ntfy (https://ntfy.sh) is the recommended free channel for near-realtime push:
+no account needed — pick a long, unguessable topic, subscribe to it in the ntfy
+phone app, and the daemon POSTs to it. Telegram is also supported. Both handle
+dedup (don't re-push the same story), quiet hours and optional chart images.
 """
 from __future__ import annotations
 
@@ -20,15 +21,29 @@ class Notifier:
         self.cfg = cfg
         self.storage = storage
         self.channel = cfg.get("notifications.channel", "console")
-        self.token = cfg.secret("TELEGRAM_BOT_TOKEN")
-        self.chat_id = cfg.secret("TELEGRAM_CHAT_ID")
         self.send_charts = cfg.get("notifications.send_charts", True)
         self.dedup_minutes = cfg.get("notifications.dedup_minutes", 30)
         self.quiet_hours = cfg.get("notifications.quiet_hours", []) or []
 
+        # Telegram
+        self.token = cfg.secret("TELEGRAM_BOT_TOKEN")
+        self.chat_id = cfg.secret("TELEGRAM_CHAT_ID")
+
+        # ntfy
+        self.ntfy_server = str(cfg.get("notifications.ntfy.server",
+                                       "https://ntfy.sh")).rstrip("/")
+        self.ntfy_topic = cfg.get("notifications.ntfy.topic", "")
+        self.ntfy_priority = str(cfg.get("notifications.ntfy.priority", "high"))
+        self.ntfy_token = cfg.secret("NTFY_TOKEN")
+
         if self.channel == "telegram" and not (self.token and self.chat_id):
             log.warning("channel=telegram but TELEGRAM_BOT_TOKEN/CHAT_ID missing;"
                         " falling back to console.")
+            self.channel = "console"
+        if self.channel == "ntfy" and (not self.ntfy_topic
+                                       or "CHANGE-ME" in self.ntfy_topic):
+            log.warning("channel=ntfy but no valid topic set; falling back to "
+                        "console. Set notifications.ntfy.topic in config.yaml.")
             self.channel = "console"
 
     # ------------------------------------------------------------------ public
@@ -55,6 +70,8 @@ class Notifier:
 
     # ---------------------------------------------------------------- internal
     def _send(self, text: str, chart_path: Optional[str]) -> bool:
+        if self.channel == "ntfy":
+            return self._send_ntfy(text, chart_path)
         if self.channel == "telegram":
             return self._send_telegram(text, chart_path)
         # console fallback
@@ -64,6 +81,50 @@ class Notifier:
             print(f"[chart] {chart_path}")
         print("=" * 70 + "\n")
         return True
+
+    def _send_ntfy(self, text: str, chart_path: Optional[str]) -> bool:
+        """Send the full (UTF-8, multi-line) analysis as the POST body, then
+        optionally attach the chart as a companion image message.
+
+        Rationale: ntfy attachments require the message to live in HTTP headers
+        (single-line, ASCII-only). To keep the rich Swedish text with emoji and
+        newlines intact, that must go in the request *body* (POST), so the chart
+        is delivered as a second, grouped message with a header-safe caption.
+        """
+        url = f"{self.ntfy_server}/{self.ntfy_topic}"
+        title = _ascii_header(_first_line(text))
+        auth = ({"Authorization": f"Bearer {self.ntfy_token}"}
+                if self.ntfy_token else {})
+        try:
+            headers = {"Title": title, "Priority": self.ntfy_priority,
+                       "Tags": "oil,fuelpump", "Markdown": "yes", **auth}
+            resp = requests.post(url, data=text.encode("utf-8"),
+                                 headers=headers, timeout=30)
+            if resp.status_code != 200:
+                log.error("ntfy send failed (%s): %s", resp.status_code,
+                          resp.text[:200])
+                return False
+
+            if chart_path and self.send_charts:
+                try:
+                    with open(chart_path, "rb") as fh:
+                        put_headers = {
+                            "Title": _truncate(f"Chart: {title}", 100),
+                            "Priority": self.ntfy_priority,
+                            "Filename": "chart.png", "Tags": "chart_with_upwards_trend",
+                            **auth,
+                        }
+                        r2 = requests.put(url, data=fh, headers=put_headers,
+                                          timeout=30)
+                    if r2.status_code != 200:
+                        log.warning("ntfy chart attach failed (%s)",
+                                    r2.status_code)
+                except Exception as e:
+                    log.warning("ntfy chart attach error: %s", e)
+            return True
+        except Exception as e:
+            log.error("ntfy send error: %s", e)
+            return False
 
     def _send_telegram(self, text: str, chart_path: Optional[str]) -> bool:
         base = f"https://api.telegram.org/bot{self.token}"
@@ -131,3 +192,27 @@ def _parse_hhmm(s: str) -> time:
 
 def _truncate(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _first_line(text: str) -> str:
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    # Prefer the informative headline line (e.g. "[INVENTORY · hausse] ...").
+    for line in lines:
+        if "[" in line and "]" in line:
+            return line.replace("*", "").strip()[:120]
+    return (lines[0].replace("*", "").strip()[:120] if lines else "Oljan")
+
+
+_TRANSLIT = str.maketrans({
+    "å": "a", "ä": "a", "ö": "o", "Å": "A", "Ä": "A", "Ö": "O",
+    "é": "e", "è": "e", "ü": "u", "·": "-", "–": "-", "—": "-",
+})
+
+
+def _ascii_header(text: str) -> str:
+    # ntfy decodes header values as UTF-8 but the HTTP client sends them as
+    # latin-1, so keep the Title strictly ASCII (the full UTF-8 text lives in
+    # the message body). Transliterate common Swedish chars, drop the rest.
+    cleaned = text.replace("*", "").translate(_TRANSLIT)
+    cleaned = cleaned.encode("ascii", "ignore").decode("ascii").strip()
+    return cleaned or "Oljan"

@@ -24,6 +24,7 @@ except Exception:  # pragma: no cover
 SECRET_KEYS = [
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
+    "NTFY_TOKEN",
     "NEWSAPI_KEY",
     "EIA_API_KEY",
     "REDDIT_CLIENT_ID",

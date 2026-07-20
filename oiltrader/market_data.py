@@ -1,9 +1,9 @@
-"""Market data retrieval.
+"""Market data retrieval (multi-timeframe, intraday-first).
 
-Primary provider is yfinance (free, no API key). Data is normalised to a
-tz-aware (UTC) DataFrame with lowercase columns: open, high, low, close,
-volume. Fetched candles are persisted via Storage so history accrues over
-time (see storage.py).
+Fetches candles for each configured timeframe (e.g. 1m/5m/15m/1h) via a
+pluggable provider (see providers.py) and persists them so history accrues
+over time. Data is tz-aware (UTC) with lowercase columns:
+open, high, low, close, volume.
 """
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ from typing import Optional
 
 import pandas as pd
 
+from .providers import get_provider
+
 log = logging.getLogger("oljan.market_data")
 
 
@@ -20,82 +22,73 @@ class MarketData:
     def __init__(self, cfg, storage):
         self.cfg = cfg
         self.storage = storage
-        self.interval = cfg.get("market_data.intraday_interval", "15m")
-        self.intraday_lookback = cfg.get("market_data.intraday_lookback", "30d")
+        self.provider = get_provider(cfg)
+
+        tfs = cfg.get("market_data.timeframes", None)
+        if tfs:
+            self.timeframes = [(t["interval"], t.get("lookback", "5d"))
+                               for t in tfs]
+        else:  # backward-compat with the single-interval config
+            iv = cfg.get("market_data.intraday_interval", "15m")
+            lb = cfg.get("market_data.intraday_lookback", "30d")
+            self.timeframes = [(iv, lb)]
+
+        self.intervals = [iv for iv, _ in self.timeframes]
+        self.analysis_tf = cfg.get(
+            "market_data.analysis_timeframe",
+            cfg.get("market_data.intraday_interval", self.intervals[0]))
+        if self.analysis_tf not in self.intervals:
+            self.analysis_tf = self.intervals[0]
         self.daily_lookback = cfg.get("market_data.daily_lookback", "5y")
+        # polite spacing between provider calls to avoid rate limits
+        self.request_spacing = float(cfg.get("market_data.request_spacing", 0.8))
 
     # ------------------------------------------------------------------ public
-    def refresh(self, symbol: str) -> pd.DataFrame:
-        """Fetch latest intraday candles and persist them."""
-        df = self._download(symbol, self.intraday_lookback, self.interval)
-        if not df.empty:
-            self.storage.upsert_candles(symbol, self.interval, df)
-        return df
+    def refresh_all(self, symbol: str) -> dict[str, pd.DataFrame]:
+        """Fetch + persist every configured timeframe for a symbol."""
+        out: dict[str, pd.DataFrame] = {}
+        for interval, lookback in self.timeframes:
+            df = self._fetch(symbol, interval, lookback)
+            if not df.empty:
+                self.storage.upsert_candles(symbol, interval, df)
+            out[interval] = df
+            if self.request_spacing:
+                time.sleep(self.request_spacing)
+        return out
 
     def refresh_daily(self, symbol: str) -> pd.DataFrame:
-        df = self._download(symbol, self.daily_lookback, "1d")
+        df = self._fetch(symbol, "1d", self.daily_lookback)
         if not df.empty:
             self.storage.upsert_candles(symbol, "1d", df)
         return df
 
-    def get_intraday(self, symbol: str, min_rows: int = 50) -> pd.DataFrame:
-        """Return intraday candles, preferring stored history, refreshing if
-        stale/insufficient."""
-        df = self.storage.get_candles(symbol, self.interval)
+    def get_candles(self, symbol: str, interval: str,
+                    min_rows: int = 40) -> pd.DataFrame:
+        """Stored candles for a timeframe, refreshing if too few."""
+        df = self.storage.get_candles(symbol, interval)
         if len(df) < min_rows:
-            fresh = self.refresh(symbol)
+            lookback = dict(self.timeframes).get(interval, "5d")
+            fresh = self._fetch(symbol, interval, lookback)
             if not fresh.empty:
-                df = self.storage.get_candles(symbol, self.interval)
+                self.storage.upsert_candles(symbol, interval, fresh)
+                df = self.storage.get_candles(symbol, interval)
         return df
 
     def last_price(self, symbol: str) -> Optional[float]:
-        df = self.storage.get_candles(symbol, self.interval)
+        df = self.storage.get_candles(symbol, self.analysis_tf)
         if df.empty:
-            return None
-        return float(df["close"].iloc[-1])
+            # fall back to any available timeframe
+            for iv in self.intervals:
+                df = self.storage.get_candles(symbol, iv)
+                if not df.empty:
+                    break
+        return float(df["close"].iloc[-1]) if not df.empty else None
 
     # ---------------------------------------------------------------- internal
-    def _download(self, symbol: str, period: str, interval: str,
-                  retries: int = 3) -> pd.DataFrame:
-        import yfinance as yf  # imported lazily so the package imports cheaply
-
-        last_err: Exception | None = None
-        for attempt in range(retries):
-            try:
-                df = yf.download(
-                    symbol, period=period, interval=interval,
-                    auto_adjust=False, progress=False, threads=False,
-                )
-                return self._normalise(df)
-            except Exception as e:  # network / parsing hiccups
-                last_err = e
-                wait = 2 ** attempt
-                log.warning("yfinance download failed (%s) attempt %d/%d: %s; "
-                            "retrying in %ds", symbol, attempt + 1, retries,
-                            e, wait)
-                time.sleep(wait)
-        log.error("yfinance download giving up for %s: %s", symbol, last_err)
-        return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
-
-    @staticmethod
-    def _normalise(df: pd.DataFrame) -> pd.DataFrame:
-        if df is None or df.empty:
-            return pd.DataFrame(
-                columns=["open", "high", "low", "close", "volume"])
-        # yfinance sometimes returns MultiIndex columns even for one ticker.
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-        df = df.rename(columns={c: str(c).lower() for c in df.columns})
-        keep = [c for c in ["open", "high", "low", "close", "volume"]
-                if c in df.columns]
-        df = df[keep].copy()
-        # Ensure a tz-aware UTC index.
-        idx = pd.to_datetime(df.index)
-        if idx.tz is None:
-            idx = idx.tz_localize("UTC")
-        else:
-            idx = idx.tz_convert("UTC")
-        df.index = idx
-        df = df[~df.index.duplicated(keep="last")].sort_index()
-        df = df.dropna(subset=["close"])
-        return df
+    def _fetch(self, symbol: str, interval: str, lookback: str) -> pd.DataFrame:
+        try:
+            return self.provider.fetch(symbol, interval, lookback)
+        except Exception as e:
+            log.error("Provider %s failed for %s %s: %s",
+                      getattr(self.provider, "name", "?"), symbol, interval, e)
+            return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])

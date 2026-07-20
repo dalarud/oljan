@@ -45,22 +45,31 @@ def main(argv=None) -> int:
     return 0
 
 
+def d_intervals(cfg) -> list[str]:
+    tfs = cfg.get("market_data.timeframes", None)
+    if tfs:
+        return [t["interval"] for t in tfs]
+    return [cfg.get("market_data.intraday_interval", "15m")]
+
+
 def _selftest(cfg, log) -> int:
     ok = True
-    log.info("Selftest: fetching market data ...")
+    log.info("Selftest: fetching market data (timeframes=%s) ...",
+             ", ".join(d_intervals(cfg)))
     from .daemon import Daemon
+    from .indicators import compute
     d = Daemon(cfg)
     for sym in d.symbols:
-        df = d.market.refresh(sym)
-        if df is None or df.empty:
-            log.error("  %s: NO DATA", sym)
-            ok = False
-        else:
-            log.info("  %s: %d candles, last close %.2f", sym, len(df),
-                     df["close"].iloc[-1])
-            ctx = None
+        tf_data = d.market.refresh_all(sym)
+        got_any = False
+        for interval, df in tf_data.items():
+            if df is None or df.empty:
+                log.warning("  %s [%s]: NO DATA", sym, interval)
+                continue
+            got_any = True
+            log.info("  %s [%s]: %d candles, last close %.2f", sym, interval,
+                     len(df), df["close"].iloc[-1])
             try:
-                from .indicators import compute
                 ctx = compute(df, sym, cfg)
                 log.info("     trend=%s RSI=%.0f support=%s resistance=%s",
                          ctx.trend, ctx.rsi, ctx.nearest_support,
@@ -68,6 +77,9 @@ def _selftest(cfg, log) -> int:
             except Exception as e:
                 log.error("     indicator computation failed: %s", e)
                 ok = False
+        if not got_any:
+            log.error("  %s: NO DATA on any timeframe", sym)
+            ok = False
 
     log.info("Selftest: collectors ...")
     for c in d.collectors:

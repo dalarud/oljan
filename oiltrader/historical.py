@@ -62,7 +62,10 @@ class HistoricalEngine:
         self.horizons = [float(h) for h in
                          cfg.get("historical.horizons_hours", [1, 2, 4, 24])]
         self.min_sample = cfg.get("historical.min_sample_for_stats", 5)
-        self.interval = cfg.get("market_data.intraday_interval", "15m")
+        # forward returns are measured on the analysis timeframe
+        self.interval = cfg.get(
+            "market_data.analysis_timeframe",
+            cfg.get("market_data.intraday_interval", "15m"))
 
     # ------------------------------------------------------------- maturation
     def mature_events(self) -> int:

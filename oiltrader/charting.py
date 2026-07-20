@@ -11,18 +11,28 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-import matplotlib
-matplotlib.use("Agg")  # headless
-import matplotlib.pyplot as plt  # noqa: E402
-import pandas as pd  # noqa: E402
+import pandas as pd
 
-from .indicators import ChartContext, ema, bollinger  # noqa: E402
+from .indicators import ChartContext, ema, bollinger
 
 log = logging.getLogger("oljan.charting")
+
+# matplotlib is optional: if unavailable, notifications are sent text-only.
+try:
+    import matplotlib
+    matplotlib.use("Agg")  # headless
+    import matplotlib.pyplot as plt
+    _HAVE_MPL = True
+except Exception:  # pragma: no cover
+    plt = None
+    _HAVE_MPL = False
 
 
 def render_chart(df: pd.DataFrame, chart: ChartContext, cfg,
                  tag: str = "event") -> Optional[str]:
+    if not _HAVE_MPL:
+        log.debug("matplotlib not installed; skipping chart image")
+        return None
     try:
         return _render(df, chart, cfg, tag)
     except Exception as e:  # never let charting break a notification

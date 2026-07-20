@@ -62,7 +62,10 @@ class Daemon:
 
         self.symbols = [i["symbol"] for i in cfg.instruments]
         self.primary = cfg.primary_instrument["symbol"]
-        self._chart_cache: dict[str, ChartContext] = {}
+        self.intervals = self.market.intervals
+        self.analysis_tf = self.market.analysis_tf
+        # cache[symbol][timeframe] -> ChartContext
+        self._chart_cache: dict[str, dict[str, ChartContext]] = {}
         self._running = True
 
         self.min_notify_score = cfg.get("notifications.min_notify_score", 2.5)
@@ -117,19 +120,35 @@ class Daemon:
     # ------------------------------------------------------------------ tasks
     def _task_market(self) -> None:
         for sym in self.symbols:
-            df = self.market.get_intraday(sym)
-            if df is None or df.empty or len(df) < 30:
-                log.warning("Insufficient candles for %s (%d)", sym,
-                            0 if df is None else len(df))
-                continue
-            self._chart_cache[sym] = compute_indicators(df, sym, self.cfg)
+            self.market.refresh_all(sym)
+            tf_charts: dict[str, ChartContext] = {}
+            for interval in self.intervals:
+                df = self.market.get_candles(sym, interval)
+                if df is None or df.empty or len(df) < 30:
+                    continue
+                tf_charts[interval] = compute_indicators(df, sym, self.cfg)
+            if tf_charts:
+                self._chart_cache[sym] = tf_charts
+            else:
+                log.warning("Insufficient candles for %s across timeframes", sym)
 
     def _task_daily(self) -> None:
         for sym in self.symbols:
             self.market.refresh_daily(sym)
 
+    def _primary_chart(self, symbol: str) -> ChartContext | None:
+        tf_charts = self._chart_cache.get(symbol, {})
+        return tf_charts.get(self.analysis_tf) or (
+            next(iter(tf_charts.values()), None))
+
+    def _mtf_trends(self, symbol: str) -> dict[str, str]:
+        tf_charts = self._chart_cache.get(symbol, {})
+        return {tf: tf_charts[tf].trend for tf in self.intervals
+                if tf in tf_charts}
+
     def _task_news(self) -> None:
-        chart = self._chart_cache.get(self.primary)
+        chart = self._primary_chart(self.primary)
+        mtf = self._mtf_trends(self.primary)
         new_items = 0
         processed = 0
         for collector in self.collectors:
@@ -150,7 +169,7 @@ class Daemon:
                     continue
                 self.events.persist(event)
                 processed += 1
-                self._handle_event(event, chart)
+                self._handle_event(event, chart, mtf)
         if new_items:
             log.info("news pass: %d new items, %d relevant events",
                      new_items, processed)
@@ -168,8 +187,8 @@ class Daemon:
         self.storage.set_meta("last_heartbeat", ts)
 
     # ---------------------------------------------------------------- helpers
-    def _handle_event(self, event, chart) -> None:
-        analysis = self.analyzer.build(event, chart)
+    def _handle_event(self, event, chart, mtf=None) -> None:
+        analysis = self.analyzer.build(event, chart, mtf)
 
         should_notify = (
             event.relevance >= self.min_notify_score
@@ -186,8 +205,7 @@ class Daemon:
         chart_path = None
         if chart is not None and self.cfg.get("notifications.send_charts", True):
             df = self.storage.get_candles(
-                event.symbol or self.primary,
-                self.cfg.get("market_data.intraday_interval", "15m"))
+                event.symbol or self.primary, self.analysis_tf)
             if not df.empty:
                 chart_path = render_chart(df, chart, self.cfg,
                                           tag=event.category)
