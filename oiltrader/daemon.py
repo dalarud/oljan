@@ -92,22 +92,21 @@ class Daemon:
         self._install_signals()
         log.info("Oljan daemon starting. Symbols=%s primary=%s collectors=%s",
                  self.symbols, self.primary, [c.name for c in self.collectors])
-        # Warm up so charts/analysis have data immediately.
-        self._safe(self._task_daily, self.tasks[3])
-        self._safe(self._task_market, self.tasks[0])
-
-        # Immediate liveness ping so the user knows the daemon is up.
-        price = self.market.last_price(self.primary)
-        px = f"{price:.2f}" if price else "n/a"
+        # Immediate liveness ping so the user knows the daemon is up, BEFORE
+        # the (potentially slow) first data fetch.
         tfs = ", ".join(self.intervals)
         try:
             self.notifier.send_text(
-                f"🟢 Oljan startad och bevakar {self.primary} ({px}).\n"
-                f"Tidsramar: {tfs} · källor: {len(self.collectors)} · "
-                f"analys-TF: {self.analysis_tf}.\n"
+                f"🟢 Oljan startad och bevakar {', '.join(self.symbols)}.\n"
+                f"Tidsramar: {tfs} · analys-TF: {self.analysis_tf} · "
+                f"källor: {len(self.collectors)}.\n"
                 f"_Du får en notis när något relevant händer._")
         except Exception as e:
             log.warning("startup ping failed: %s", e)
+
+        # Warm up so charts/analysis have data available.
+        self._safe(self._task_daily, self.tasks[3])
+        self._safe(self._task_market, self.tasks[0])
 
         now = time.time()
         for t in self.tasks:
