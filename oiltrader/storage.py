@@ -74,6 +74,24 @@ CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- One row per PUSHED alert, scored against the later price move so the
+-- engine can measure its own precision and (optionally) self-tune.
+CREATE TABLE IF NOT EXISTS alerts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts         INTEGER NOT NULL,            -- when the alert fired (UTC epoch)
+    event_id   INTEGER,
+    symbol     TEXT,
+    category   TEXT,
+    direction  TEXT,                        -- bullish | bearish | neutral
+    conviction INTEGER,
+    ref_price  REAL,                        -- price at alert time (engine basis)
+    horizon_h  REAL,
+    scored     INTEGER DEFAULT 0,
+    correct    INTEGER,                     -- 1/0 once scored, NULL until then
+    fwd_return REAL
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_scored ON alerts(scored);
 """
 
 
@@ -267,6 +285,49 @@ class Storage:
                 (dedup, _epoch(since)),
             ).fetchone()
         return row is not None
+
+    # ------------------------------------------------------------------ alerts
+    def insert_alert(self, ts: datetime, event_id: int | None, symbol: str,
+                     category: str, direction: str, conviction: int,
+                     ref_price: float | None, horizon_h: float) -> int:
+        with self._lock:
+            cur = self._conn.execute(
+                "INSERT INTO alerts (ts, event_id, symbol, category, direction, "
+                "conviction, ref_price, horizon_h, scored) "
+                "VALUES (?,?,?,?,?,?,?,?,0)",
+                (_epoch(ts), event_id, symbol, category, direction,
+                 int(conviction), ref_price, float(horizon_h)),
+            )
+            self._conn.commit()
+            return int(cur.lastrowid)
+
+    def unscored_alerts(self) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM alerts WHERE scored=0 AND direction!='neutral' "
+                "ORDER BY ts ASC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def score_alert(self, alert_id: int, correct: int,
+                    fwd_return: float) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE alerts SET scored=1, correct=?, fwd_return=? WHERE id=?",
+                (int(correct), float(fwd_return), alert_id),
+            )
+            self._conn.commit()
+
+    def alert_stats(self, since: datetime | None = None) -> list[dict[str, Any]]:
+        """Scored alerts (optionally since a time), newest first."""
+        q = "SELECT * FROM alerts WHERE scored=1"
+        params: list[Any] = []
+        if since is not None:
+            q += " AND ts>=?"; params.append(_epoch(since))
+        q += " ORDER BY ts DESC"
+        with self._lock:
+            rows = self._conn.execute(q, params).fetchall()
+        return [dict(r) for r in rows]
 
     # -------------------------------------------------------------------- meta
     def set_meta(self, key: str, value: str) -> None:

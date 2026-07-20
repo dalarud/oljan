@@ -18,6 +18,7 @@ from typing import Callable, Optional
 from .analysis import Analyzer
 from .charting import render_chart
 from .collectors import build_collectors
+from .evaluator import AlertEvaluator
 from .events import EventProcessor
 from .historical import HistoricalEngine
 from .indicators import ChartContext, compute as compute_indicators
@@ -61,6 +62,7 @@ class Daemon:
         self.notifier = Notifier(cfg, self.storage)
         self.collectors = build_collectors(cfg, self.storage)
         self.health = SourceHealth()
+        self.evaluator = AlertEvaluator(cfg, self.storage, self.market)
 
         self.symbols = [i["symbol"] for i in cfg.instruments]
         self.primary = cfg.primary_instrument["symbol"]
@@ -73,7 +75,7 @@ class Daemon:
                                  self.storage, self.primary)
 
         self.min_notify_score = cfg.get("notifications.min_notify_score", 2.5)
-        self.min_conviction = cfg.get("notifications.min_conviction", 40)
+        self.config_min_conviction = cfg.get("notifications.min_conviction", 40)
         self.always_notify_substantial = cfg.get(
             "notifications.always_notify_substantial", True)
         self.max_news_age_min = cfg.get("news.max_age_minutes", 360)
@@ -103,11 +105,27 @@ class Daemon:
         if cfg.get("watchdog.enabled", True):
             self.tasks.append(Task("watchdog", self._task_watchdog,
                                    cfg.get("watchdog.check_seconds", 300)))
+        if cfg.get("alert_eval.enabled", True):
+            self.tasks.append(Task("score", self._task_score,
+                                   cfg.get("alert_eval.score_seconds", 900)))
+            sc_h = cfg.get("alert_eval.scorecard_hours", 24)
+            if sc_h and sc_h > 0:
+                self.tasks.append(Task("scorecard", self._task_scorecard,
+                                       sc_h * 3600))
         self._tasks_by_name = {t.name: t for t in self.tasks}
         self._base_interval = base
 
     def _task(self, name: str) -> "Task":
         return self._tasks_by_name[name]
+
+    @property
+    def min_conviction(self) -> int:
+        """Effective threshold: an auto-tuned value overrides the config one."""
+        tuned = self.storage.get_meta("tuned_min_conviction")
+        try:
+            return int(tuned) if tuned is not None else self.config_min_conviction
+        except (TypeError, ValueError):
+            return self.config_min_conviction
 
     # ------------------------------------------------------------------- loop
     def run(self) -> None:
@@ -289,6 +307,21 @@ class Daemon:
     def _task_watchdog(self) -> None:
         self.watchdog.evaluate()
 
+    def _task_score(self) -> None:
+        self.evaluator.score_due()
+        new_min = self.evaluator.maybe_tune(self.min_conviction)
+        if new_min is not None:
+            self.notifier.send_text(
+                f"⚙️ Oljan justerade konviktionströskeln till *{new_min}* "
+                f"utifrån uppmätt marginalträffsäkerhet. "
+                f"_Färre men mer träffsäkra notiser._")
+
+    def _task_scorecard(self) -> None:
+        msg = self.evaluator.scorecard(
+            self.cfg.get("alert_eval.scorecard_lookback_days", 14))
+        if msg:
+            self.notifier.send_text(msg)
+
     def _task_pulse(self) -> None:
         from .pulse import build_pulse
         chart = self._primary_chart(self.primary)
@@ -356,6 +389,9 @@ class Daemon:
                 chart_path = render_chart(df, chart, self.cfg,
                                           tag=event.category)
         self.notifier.notify_event(analysis, chart_path)
+        # Log the pushed alert so its directional claim can be scored later.
+        ref_price = chart.price if chart is not None else None
+        self.evaluator.record(analysis, ref_price)
 
     def _safe(self, fn: Callable[[], None], task: Optional[Task],
               reschedule: bool = True) -> None:

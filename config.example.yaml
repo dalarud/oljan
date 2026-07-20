@@ -307,6 +307,28 @@ watchdog:
   source_stale_seconds: 600       # a source silent this long is flagged
   market_stale_minutes: 15        # primary has no fresh candle for this long
 
+alert_eval:
+  # Self-evaluation: every pushed alert makes a directional claim; the engine
+  # records the price at alert time, waits `horizon_hours`, then scores whether
+  # price actually moved that way. Produces an honest, measured track record
+  # (overall + per conviction bucket) instead of unfalsifiable opinions.
+  enabled: true
+  horizon_hours: 1.0              # how far ahead to judge the call
+  deadband_pct: 0.15             # moves smaller than this count as "no move"
+  score_seconds: 900              # how often to score matured alerts
+  scorecard_hours: 24             # push a precision scorecard this often (0=off)
+  scorecard_lookback_days: 14
+  # Optional bounded self-tuning of notifications.min_conviction. Off by
+  # default: when on, if the conviction band just above the threshold is no
+  # better than a coin flip over enough samples, the bar is raised (announced,
+  # never silent). Always clamped to [tune_floor, tune_ceiling].
+  auto_tune: false
+  tune_min_sample: 20
+  tune_floor: 30
+  tune_ceiling: 70
+  tune_step: 5
+  precision_floor: 0.45
+
 historical:
   # Intraday-oriented horizons (in hours): 15m, 30m, 1h, 2h, 4h.
   horizons_hours: [0.25, 0.5, 1, 2, 4]
