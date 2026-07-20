@@ -72,13 +72,17 @@ position:
   broker_offset: 0.0
 
 news:
-  # Streaming mode: each source polls on its own thread and items are alerted
-  # as soon as they arrive (after a short corroboration window) — lowest latency.
-  stream_enabled: true
-  stream_gather_seconds: 25      # wait this long for corroborating sources
-  stream_priority_gather_seconds: 8  # high-credibility sources fire faster
-  poll_seconds: 60             # per-source poll cadence (also batch-mode cycle)
-  collector_timeout_seconds: 25  # batch-mode only: per-cycle budget
+  # DEFAULT = concurrent batch poll (stream_enabled: false). Every source is
+  # collected in parallel each cycle, so a slow source (e.g. Nitter) never
+  # blocks fast ones; at poll_seconds=60 the latency is on par with streaming
+  # but with far fewer moving parts (no threads/queue/gather-window). Set
+  # stream_enabled: true only if you want each source on its own poll cadence:
+  # items then alert as soon as they arrive after a short corroboration window.
+  stream_enabled: false
+  stream_gather_seconds: 25      # streaming only: wait for corroborating sources
+  stream_priority_gather_seconds: 8  # streaming only: high-cred sources fire faster
+  poll_seconds: 60             # batch-mode cycle (and per-source cadence if streaming)
+  collector_timeout_seconds: 25  # batch-mode: per-cycle collection budget
   max_age_minutes: 240         # ignore news older than this (intraday focus)
   freshness_halflife_minutes: 60  # freshness score halves every hour
   cluster_similarity: 0.4      # story-clustering threshold (token Jaccard)

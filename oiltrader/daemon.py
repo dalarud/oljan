@@ -86,7 +86,11 @@ class Daemon:
         self.collector_timeout = cfg.get("news.collector_timeout_seconds", 25)
 
         base = cfg.get("general.loop_interval_seconds", 30)
-        self.stream_enabled = cfg.get("news.stream_enabled", True)
+        # Default to the simpler concurrent batch poll: it already collects all
+        # sources in parallel (a slow source never blocks fast ones), so at a
+        # short poll interval its latency is on par with streaming but with far
+        # fewer moving parts. Streaming remains available via stream_enabled.
+        self.stream_enabled = cfg.get("news.stream_enabled", False)
         self._engine = None
         # Periodic (non-news) tasks, looked up by name.
         self.tasks = [
