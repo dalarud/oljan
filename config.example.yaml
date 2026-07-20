@@ -279,6 +279,17 @@ classification:
   substance_threshold: 0.5      # >= => "substantial"
   manipulation_threshold: 0.55  # >= => flag potential manipulation/noise
 
+llm:
+  # Optional: send only the highest-relevance headline of each story to a
+  # small, cheap Claude model for a context-aware read (direction, whether it
+  # is a concrete ACTION vs. mere talk/threat, magnitude, and a one-line
+  # Swedish rationale). Degrades silently to the keyword lexicon when disabled
+  # or on any error. Requires the `anthropic` package and ANTHROPIC_API_KEY.
+  enabled: false
+  model: "claude-haiku-4-5"     # cheap + fast; good enough for classification
+  min_relevance: 3.0            # only classify items at/above this relevance
+  timeout_seconds: 20
+
 historical:
   # Intraday-oriented horizons (in hours): 15m, 30m, 1h, 2h, 4h.
   horizons_hours: [0.25, 0.5, 1, 2, 4]

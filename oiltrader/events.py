@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 from .collectors.base import NewsItem
 from .indicators import ChartContext
+from .llm import LlmClassifier
 from .sentiment import SentimentEngine, SentimentResult
 
 log = logging.getLogger("oljan.events")
@@ -84,6 +85,8 @@ class EventProcessor:
         self._kw_pat = {kw: _wb(kw) for kw in self.keywords}
         self._cat_pat = {cat: [_wb(k) for k in kws]
                          for cat, kws in CATEGORIES.items()}
+        # Optional LLM reader for the highest-relevance items (off by default).
+        self.llm = LlmClassifier(cfg)
 
     # --------------------------------------------------------------- relevance
     def relevance(self, item: NewsItem) -> float:
@@ -180,6 +183,30 @@ class EventProcessor:
 
         factors: dict[str, Any] = {}
         factors["conflict"] = conflict
+
+        # -- optional LLM read of the strongest item: better at context,
+        #    conditionals and novel phrasing than the keyword lexicon. Only
+        #    the representative (highest-weight) headline is sent, and only
+        #    when relevance clears the LLM threshold, to bound cost. Degrades
+        #    silently to the lexicon direction when disabled or on error.
+        factors["is_action"] = None
+        if self.llm.enabled and rel >= self.llm.min_relevance:
+            llm_res = self.llm.classify(rep.text, key=rep.hash)
+            if llm_res is not None:
+                direction = llm_res.direction
+                # LLM magnitude is 0..1; map onto the lexicon's ~0..3 scale
+                # and keep the stronger of the two reads.
+                magnitude = max(magnitude, llm_res.magnitude * 3.0)
+                factors["is_action"] = llm_res.is_action
+                factors["llm"] = {
+                    "direction": llm_res.direction,
+                    "event_type": llm_res.event_type,
+                    "is_action": llm_res.is_action,
+                    "magnitude": round(llm_res.magnitude, 2),
+                    "confidence": round(llm_res.confidence, 2),
+                    "rationale_sv": llm_res.rationale_sv,
+                }
+
         # -- event size from hard numbers (bigger => more market impact)
         size = max((self._extract_size(it.text) for it in story.items),
                    default=0.0)

@@ -95,6 +95,13 @@ class Analyzer:
     }
 
     def _plain_meaning(self, event: Event) -> str:
+        # An LLM read (when enabled) captures context the lexicon can't; prefer
+        # its one-line Swedish rationale over the category template.
+        llm = event.factors.get("llm")
+        if llm and llm.get("rationale_sv"):
+            note = " (endast prat/hot, ej konkret händelse)" \
+                if llm.get("is_action") is False else ""
+            return f"{llm['rationale_sv']}{note}"
         base = self._MEANING.get((event.category, event.direction))
         if base:
             return base
@@ -143,6 +150,8 @@ class Analyzer:
             conv *= 0.5
         if event.factors.get("conflict"):
             conv *= 0.8            # sources disagree on direction
+        if event.factors.get("is_action") is False:
+            conv *= 0.75          # LLM read it as mere talk/threat, not action
         return int(round(max(0.0, min(conv, 100.0))))
 
     # ------------------------------------------------------------- components

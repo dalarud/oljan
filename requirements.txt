@@ -22,3 +22,7 @@ mplfinance>=0.12.10b0
 
 # Optional social source (Reddit). Imported lazily; only needed if reddit_enabled.
 praw>=7.7
+
+# Optional LLM interpretation of top headlines. Imported lazily; only needed
+# if llm.enabled is true in config.yaml.
+anthropic>=0.40
