@@ -64,6 +64,12 @@ position:
   leverage: 10
   side: "long"               # long | short | flat
   entry_price: null          # optional; enables PnL/liquidation-distance notes
+  # Optional one-time calibration when the intraday feed is a scaled ETF
+  # estimate: (your broker's UKOIL price) minus (the price Oljan shows), e.g.
+  # broker 68.50 - Oljan 68.30 => 0.20. Re-bases displayed absolute levels to
+  # match your screen. Leave 0 to show raw feed prices. The %/ATR distances in
+  # every alert are basis-independent and correct either way.
+  broker_offset: 0.0
 
 news:
   # Streaming mode: each source polls on its own thread and items are alerted

@@ -42,6 +42,12 @@ class Analyzer:
         self.leverage = float(cfg.get("position.leverage", 1) or 1)
         self.side = str(cfg.get("position.side", "flat")).lower()
         self.entry = cfg.get("position.entry_price", None)
+        # Optional calibration: broker's price minus the engine's price, entered
+        # once. When the intraday feed is a scaled ETF estimate the absolute
+        # basis can differ from the broker's UKOIL; this re-bases displayed
+        # numbers so they match the trading screen. %/ATR distances are basis-
+        # independent regardless and are always shown.
+        self.broker_offset = float(cfg.get("position.broker_offset", 0.0) or 0.0)
         self.verbosity = str(cfg.get("notifications.verbosity", "compact")).lower()
         self.stale_after_min = float(cfg.get("notifications.stale_after_minutes", 20))
         # symbol -> friendly name (e.g. BZ=F -> "Brent (UKOIL)")
@@ -270,30 +276,37 @@ class Analyzer:
         if chart is None:
             return ""
         lines: list[str] = []
+
+        def ladder(vals):
+            return " → ".join(f"{self._disp(v):.2f}{self._off(v, chart, atr=True)}"
+                              for v in vals[:3])
+
         if self.side in ("long", "flat"):
             if chart.resistances:
-                tgt = " → ".join(f"{r:.2f}" for r in chart.resistances[:3])
-                lines.append(f"🎯 Mål upp (motstånd): {tgt}")
+                lines.append(f"🎯 Mål upp (motstånd): {ladder(chart.resistances)}")
             else:
                 lines.append("🎯 Inget motstånd ovanför (blue sky) – traila stop.")
             if chart.supports:
-                sup = " → ".join(f"{s:.2f}" for s in chart.supports[:3])
-                lines.append(f"🛡 Stöd nedåt: {sup}")
+                lines.append(f"🛡 Stöd nedåt: {ladder(chart.supports)}")
         else:  # short
             if chart.supports:
-                tgt = " → ".join(f"{s:.2f}" for s in chart.supports[:3])
-                lines.append(f"🎯 Mål ned (stöd): {tgt}")
+                lines.append(f"🎯 Mål ned (stöd): {ladder(chart.supports)}")
             else:
                 lines.append("🎯 Inget stöd nedanför – traila stop.")
             if chart.resistances:
-                res = " → ".join(f"{r:.2f}" for r in chart.resistances[:3])
-                lines.append(f"🛡 Motstånd uppåt: {res}")
+                lines.append(f"🛡 Motstånd uppåt: {ladder(chart.resistances)}")
         if stop is not None:
             risk = abs(chart.price - stop) / chart.price * 100.0
             lev = risk * self.leverage
-            lines.append(f"🛑 Stop ~{stop:.2f}  ({risk:.1f}% på priset ≈ "
-                         f"{lev:.0f}% på marginal vid x{self.leverage:g}). "
+            lines.append(f"🛑 Stop ~{self._disp(stop):.2f}  ({risk:.1f}% på priset "
+                         f"≈ {lev:.0f}% på marginal vid x{self.leverage:g}). "
                          f"ATR {chart.atr:.2f}.")
+        if self.broker_offset:
+            lines.append(f"⚓ Broker-justerad ({self.broker_offset:+.2f}); "
+                         f"%/ATR-avstånd är basoberoende.")
+        elif "scaled" in (chart.source or ""):
+            lines.append("ℹ️ Nivåerna är från en skalad ETF-estimat – använd "
+                         "%/ATR-avstånden (basoberoende), inte absolut $/fat.")
         lines.append(self._leverage_risk_note(chart))
         return "\n".join(lines)
 
@@ -346,6 +359,20 @@ class Analyzer:
     def _dir_emoji(self, event) -> str:
         return {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪"}[event.direction]
 
+    def _disp(self, val: float) -> float:
+        """Absolute price re-based to the broker's basis for display."""
+        return val + self.broker_offset
+
+    def _off(self, val: float, chart, atr: bool = False) -> str:
+        """Basis-independent distance from current price: %/(optional)ATR."""
+        px = getattr(chart, "price", None)
+        if not px:
+            return ""
+        pct = (val - px) / px * 100.0
+        if atr and getattr(chart, "atr", 0):
+            return f"({pct:+.1f}%/{(val - px) / chart.atr:+.1f}atr)"
+        return f"({pct:+.1f}%)"
+
     def _price_line(self, chart, levels) -> str:
         if chart is None:
             return "📊 ⚠️ Ingen prisdata – inga nivåer."
@@ -358,14 +385,17 @@ class Analyzer:
         ctf = chart.timeframe or ""
         est = " · est." if "scaled" in (chart.source or "") else \
               " · dagsdata" if ctf == "1d" else ""
-        line = f"📊 {disp} {chart.price:.2f} ({ctf}{est})"
+        anchor = " · broker-just." if self.broker_offset else ""
+        line = f"📊 {disp} {self._disp(chart.price):.2f} ({ctf}{est}{anchor})"
         if levels:
             if levels.day_high and levels.day_low:
-                line += f" · dag {levels.day_low:.2f}–{levels.day_high:.2f}"
+                line += (f" · dag {self._disp(levels.day_low):.2f}–"
+                         f"{self._disp(levels.day_high):.2f}")
             if levels.pdh and levels.pdl:
-                line += f" · igår {levels.pdl:.2f}–{levels.pdh:.2f}"
+                line += (f" · igår {self._disp(levels.pdl):.2f}–"
+                         f"{self._disp(levels.pdh):.2f}")
             if levels.vwap:
-                line += f" · VWAP {levels.vwap:.2f}"
+                line += f" · VWAP {self._disp(levels.vwap):.2f}"
         return line
 
     def _action_line(self, event, chart, levels) -> str:
@@ -377,10 +407,13 @@ class Analyzer:
             [("nivå", r) for r in (chart.resistances or [])[:3]]
         sup = levels.supports_below() if levels else \
             [("nivå", s) for s in (chart.supports or [])[:3]]
-        r_txt = " / ".join(f"{v:.2f}" for _, v in res[:2]) or "inget ovanför"
-        s_txt = " / ".join(f"{v:.2f}" for _, v in sup[:2]) or "inget nedanför"
+        r_txt = " / ".join(f"{self._disp(v):.2f}{self._off(v, chart)}"
+                           for _, v in res[:2]) or "inget ovanför"
+        s_txt = " / ".join(f"{self._disp(v):.2f}{self._off(v, chart)}"
+                           for _, v in sup[:2]) or "inget nedanför"
         invalid = sup[0][1] if sup else None
-        inval_txt = f" · ogiltig < {invalid:.2f}" if invalid else ""
+        inval_txt = (f" · ogiltig < {self._disp(invalid):.2f}"
+                     if invalid else "")
         return (f"🎯 {self._bias_word(event)} · motstånd {r_txt} · "
                 f"stöd {s_txt}{inval_txt}")
 
