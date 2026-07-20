@@ -10,12 +10,13 @@ general:
   log_level: "INFO"
 
 instruments:
-  # Yahoo Finance symbols. CL=F = WTI front-month, BZ=F = Brent front-month.
+  # Yahoo Finance symbols. BZ=F = Brent front-month (UKOIL), CL=F = WTI.
+  # Levels, targets and stops in notifications are based on the PRIMARY.
+  - name: "Brent (UKOIL)"
+    symbol: "BZ=F"
+    primary: true
   - name: "WTI"
     symbol: "CL=F"
-    primary: true
-  - name: "Brent"
-    symbol: "BZ=F"
     primary: false
 
 market_data:
@@ -95,12 +96,25 @@ social:
     - "FirstSquawk"     # breaking market/macro headlines
     - "LiveSquawk"      # breaking market/macro headlines
     - "financialjuice"  # fast headline aggregator
+    - "ForexLive"       # fast macro/market desk
+    # Oil-specialist journalists / analysts (early + expert context):
+    - "JavierBlas"      # Bloomberg Opinion energy columnist
+    - "SStapczynski"    # Bloomberg energy reporter (Asia/oil)
+    - "staunovo"        # Giovanni Staunovo, UBS oil analyst
+    - "energyintel"     # Energy Intelligence
     # Physical-oil intelligence – early on real supply disruptions:
     - "TankerTrackers"  # satellite/AIS tanker & loading tracking
+    - "Vortexa"         # cargo/flows analytics
+    # Official agencies:
+    - "OPECSecretariat" # OPEC official
+    - "IEA"             # International Energy Agency
+    - "EIAgov"          # US EIA official
     # Geopolitics / OSINT – early on conflict that moves supply:
     - "sentdefender"    # OSINTdefender – military/geopolitics
     - "Faytuks"         # breaking geopolitics/OSINT
     - "WarMonitors"     # conflict OSINT
+    - "IntelCrab"       # OSINT
+    - "IranIntl_En"     # Iran International (English)
     - "spectatorindex"  # breaking world news
 
 relevance:
@@ -196,14 +210,25 @@ classification:
     "investing.com": 0.7
     "newsapi": 0.65
     # curated X intelligence handles (early + relatively reliable):
+    "opecsecretariat": 0.9   # official
+    "iea": 0.85              # official
+    "eiagov": 0.85           # official
+    "javierblas": 0.75       # expert oil columnist
+    "energyintel": 0.75
     "tankertrackers": 0.7
+    "vortexa": 0.7
+    "sstapczynski": 0.68
+    "staunovo": 0.68
     "deitaone": 0.65
     "firstsquawk": 0.6
     "livesquawk": 0.6
+    "forexlive": 0.55
     "financialjuice": 0.55
+    "iranintl_en": 0.5
     "sentdefender": 0.5
     "faytuks": 0.5
     "warmonitors": 0.45
+    "intelcrab": 0.45
     "spectatorindex": 0.45
     "x/": 0.3          # generic / uncurated X
     "reddit": 0.3
@@ -226,6 +251,7 @@ notifications:
   dedup_minutes: 30             # suppress near-duplicate notifications
   quiet_hours: []               # e.g. ["01:00-06:00"] in UTC; empty = always
   heartbeat_hours: 12           # periodic "still alive" ping (0 = disabled)
+  pulse_hours: 3                # periodic market-pulse digest (0 = disabled)
   always_notify_substantial: true  # substantial events bypass min_notify_score
   ntfy:
     server: "https://ntfy.sh"   # public server, or your self-hosted instance

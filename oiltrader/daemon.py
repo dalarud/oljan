@@ -87,6 +87,10 @@ class Daemon:
         if hb and hb > 0:
             self.tasks.append(Task("heartbeat", self._task_heartbeat,
                                    hb * 3600))
+        self.pulse_hours = cfg.get("notifications.pulse_hours", 3)
+        if self.pulse_hours and self.pulse_hours > 0:
+            self.tasks.append(Task("pulse", self._task_pulse,
+                                   self.pulse_hours * 3600))
         self._base_interval = base
 
     # ------------------------------------------------------------------- loop
@@ -215,6 +219,16 @@ class Daemon:
 
     def _task_mature(self) -> None:
         self.historical.mature_events()
+
+    def _task_pulse(self) -> None:
+        from .pulse import build_pulse
+        chart = self._primary_chart(self.primary)
+        name = self.cfg.primary_instrument.get("name", self.primary)
+        msg = build_pulse(self.storage, self.pulse_hours,
+                          self.market.last_price(self.primary),
+                          chart.trend if chart else None, name)
+        if msg:
+            self.notifier.send_text(msg)
 
     def _task_heartbeat(self) -> None:
         price = self.market.last_price(self.primary)

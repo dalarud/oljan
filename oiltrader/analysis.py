@@ -42,6 +42,9 @@ class Analyzer:
         self.leverage = float(cfg.get("position.leverage", 1) or 1)
         self.side = str(cfg.get("position.side", "flat")).lower()
         self.entry = cfg.get("position.entry_price", None)
+        # symbol -> friendly name (e.g. BZ=F -> "Brent (UKOIL)")
+        self.names = {i.get("symbol"): i.get("name", i.get("symbol"))
+                      for i in getattr(cfg, "instruments", []) or []}
 
     def build(self, event: Event, chart: Optional[ChartContext],
               mtf_trends: Optional[dict[str, str]] = None) -> Analysis:
@@ -176,17 +179,27 @@ class Analyzer:
                     else self._stop_for_short(chart) if self.side == "short"
                     else None)
 
+        # Name the concrete target level (the level "to let it run to").
+        tgt_up = chart.nearest_resistance if chart else None
+        tgt_dn = chart.nearest_support if chart else None
+
         if aligns:
             action = f"HÅLL/ÖKA {self.side}"
-            lines.append(
-                f"I linje med din {self.side}. Överväg hålla/öka gradvis; låt "
-                f"vinnare löpa mot närmaste "
-                f"{'motstånd' if self.side == 'long' else 'stöd'}.")
+            if self.side == "long" and tgt_up:
+                lines.append(f"I linje med din long. Överväg hålla/öka; låt "
+                             f"vinnare löpa mot motstånd {tgt_up:.2f}.")
+            elif self.side == "short" and tgt_dn:
+                lines.append(f"I linje med din short. Överväg hålla/öka; låt "
+                             f"vinnare löpa mot stöd {tgt_dn:.2f}.")
+            else:
+                lines.append(f"I linje med din {self.side}. Överväg hålla/öka "
+                             f"gradvis; låt vinnare löpa.")
         elif against:
             action = f"MINSKA/HEDGA {self.side}"
-            lines.append(
-                f"EMOT din {self.side}. Överväg minska/hedga eller dra upp "
-                f"stoppen. Definiera invalideringsnivå nu.")
+            inval = tgt_dn if self.side == "long" else tgt_up
+            inval_txt = f" Invalidering vid {inval:.2f}." if inval else ""
+            lines.append(f"EMOT din {self.side}. Överväg minska/hedga eller dra "
+                         f"upp stoppen.{inval_txt}")
         else:
             bias_word = "long" if event.direction == "bullish" else \
                         "short" if event.direction == "bearish" else "ingen"
@@ -195,22 +208,40 @@ class Analyzer:
                 f"Du är flat. Signalen pekar mot {bias_word}; avvakta gärna en "
                 f"retest av nyckelnivå för bättre R/R.")
 
-        if chart:
-            if self.side in ("long", "flat") and chart.nearest_support:
-                lines.append(
-                    f"Nivåer: stöd {chart.nearest_support:.2f}"
-                    + (f", motstånd {chart.nearest_resistance:.2f}"
-                       if chart.nearest_resistance else "")
-                    + f". ATR {chart.atr:.2f} ({chart.atr_pct:.1f}%).")
-            if stop is not None:
-                risk_pct = abs(chart.price - stop) / chart.price * 100.0
-                lev_pct = risk_pct * self.leverage
-                lines.append(
-                    f"Förslag stop ~{stop:.2f} = {risk_pct:.1f}% på priset "
-                    f"≈ {lev_pct:.0f}% på marginalen vid x{self.leverage:g}.")
-            lines.append(self._leverage_risk_note(chart))
-
         return action, "\n".join(lines), stop
+
+    def _levels_block(self, chart: Optional[ChartContext],
+                      stop: Optional[float]) -> str:
+        """Explicit price ladder (targets / support / stop), side-aware."""
+        if chart is None:
+            return ""
+        lines: list[str] = []
+        if self.side in ("long", "flat"):
+            if chart.resistances:
+                tgt = " → ".join(f"{r:.2f}" for r in chart.resistances[:3])
+                lines.append(f"🎯 Mål upp (motstånd): {tgt}")
+            else:
+                lines.append("🎯 Inget motstånd ovanför (blue sky) – traila stop.")
+            if chart.supports:
+                sup = " → ".join(f"{s:.2f}" for s in chart.supports[:3])
+                lines.append(f"🛡 Stöd nedåt: {sup}")
+        else:  # short
+            if chart.supports:
+                tgt = " → ".join(f"{s:.2f}" for s in chart.supports[:3])
+                lines.append(f"🎯 Mål ned (stöd): {tgt}")
+            else:
+                lines.append("🎯 Inget stöd nedanför – traila stop.")
+            if chart.resistances:
+                res = " → ".join(f"{r:.2f}" for r in chart.resistances[:3])
+                lines.append(f"🛡 Motstånd uppåt: {res}")
+        if stop is not None:
+            risk = abs(chart.price - stop) / chart.price * 100.0
+            lev = risk * self.leverage
+            lines.append(f"🛑 Stop ~{stop:.2f}  ({risk:.1f}% på priset ≈ "
+                         f"{lev:.0f}% på marginal vid x{self.leverage:g}). "
+                         f"ATR {chart.atr:.2f}.")
+        lines.append(self._leverage_risk_note(chart))
+        return "\n".join(lines)
 
     def _stop_for_long(self, chart: ChartContext) -> Optional[float]:
         base = chart.nearest_support if chart.nearest_support else chart.price
@@ -273,7 +304,8 @@ class Analyzer:
         # 2) Chart snapshot + multi-timeframe trend on one compact line.
         if chart:
             _, _, arrows = self._mtf_alignment(event, mtf_trends)
-            line = (f"📊 {chart.symbol} {tf} {chart.price:.2f} · "
+            disp = self.names.get(chart.symbol, chart.symbol)
+            line = (f"📊 {disp} {tf} {chart.price:.2f} · "
                     f"trend {chart.trend} · RSI {chart.rsi:.0f} "
                     f"({chart.rsi_state()}) · vol {chart.rel_volume:.1f}x")
             if chart.nearest_support:
@@ -299,8 +331,11 @@ class Analyzer:
         else:
             parts.append("📈 Historik: för få mognade analoga fall ännu.")
 
-        # 5) Concrete recommendation detail.
+        # 5) Concrete recommendation detail + explicit Brent price ladder.
         parts.append(f"🧭 {recommendation}")
+        levels = self._levels_block(chart, stop)
+        if levels:
+            parts.append(levels)
 
         # 6) Sources with per-source timing + who was first (lead-time intel).
         parts.append(self._sources_block(event))
