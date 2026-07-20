@@ -144,11 +144,22 @@ class Daemon:
                 df = self.market.get_candles(sym, interval)
                 if df is None or df.empty or len(df) < 30:
                     continue
-                tf_charts[interval] = compute_indicators(df, sym, self.cfg)
+                tf_charts[interval] = compute_indicators(
+                    df, sym, self.cfg, timeframe=interval)
+            if not tf_charts:
+                # No intraday feed -> fall back to REAL daily levels so we
+                # still show correct numbers (clearly labelled as daily).
+                ddf = self.market.get_candles(sym, "1d")
+                if ddf is None or ddf.empty or len(ddf) < 30:
+                    ddf = self.market.refresh_daily(sym)
+                if ddf is not None and len(ddf) >= 30:
+                    tf_charts["1d"] = compute_indicators(
+                        ddf, sym, self.cfg, timeframe="1d")
+                    log.info("%s: using daily levels (intraday unavailable)", sym)
             if tf_charts:
                 self._chart_cache[sym] = tf_charts
             else:
-                log.warning("Insufficient candles for %s across timeframes", sym)
+                log.warning("No price data for %s (intraday or daily)", sym)
 
     def _task_daily(self) -> None:
         for sym in self.symbols:

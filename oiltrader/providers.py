@@ -123,6 +123,83 @@ class YahooChartProvider:
         return df
 
 
+class AlphaVantageProvider:
+    """Real Brent/WTI prices from Alpha Vantage (EIA-sourced).
+
+    IMPORTANT: the commodity endpoints (BRENT/WTI) are DAILY/weekly/monthly
+    only — there is no intraday for the oil benchmarks — and the free key is
+    limited to ~25 calls/day. So this serves the daily series (real, correct
+    numbers) and returns empty for intraday intervals WITHOUT making a call
+    (to avoid wasting quota). Use it as the daily source / fallback; keep an
+    intraday-capable provider (Yahoo) primary for 1m/5m/15m.
+    """
+    name = "alphavantage"
+    URL = "https://www.alphavantage.co/query"
+    _FUNc = {"BZ=F": "BRENT", "CL=F": "WTI"}
+
+    def __init__(self, api_key: str, timeout: int = 25):
+        self.api_key = api_key
+        self.timeout = timeout
+
+    def fetch(self, symbol: str, interval: str, lookback: str) -> pd.DataFrame:
+        func = self._FUNc.get(symbol)
+        av_interval = {"1d": "daily", "1day": "daily", "daily": "daily",
+                       "1wk": "weekly", "1mo": "monthly"}.get(interval)
+        # No intraday for oil benchmarks + don't burn quota on unsupported calls.
+        if not func or not av_interval or not self.api_key:
+            return pd.DataFrame(columns=_EMPTY)
+        try:
+            resp = requests.get(self.URL, params={
+                "function": func, "interval": av_interval,
+                "apikey": self.api_key}, timeout=self.timeout)
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception as e:
+            log.warning("AlphaVantage fetch %s failed: %s", symbol, e)
+            return pd.DataFrame(columns=_EMPTY)
+        data = payload.get("data")
+        if not data:
+            note = payload.get("Information") or payload.get("Note") or ""
+            if note:
+                log.warning("AlphaVantage limited/blocked: %s", str(note)[:120])
+            return pd.DataFrame(columns=_EMPTY)
+        rows = []
+        for r in data:
+            try:
+                v = float(r["value"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            rows.append((pd.Timestamp(r["date"], tz="UTC"), v))
+        if not rows:
+            return pd.DataFrame(columns=_EMPTY)
+        rows.sort(key=lambda x: x[0])
+        idx = [t for t, _ in rows]
+        vals = [v for _, v in rows]
+        # Commodity series is close-only; OHLC collapse to the close.
+        df = pd.DataFrame({"open": vals, "high": vals, "low": vals,
+                           "close": vals, "volume": [0.0] * len(vals)},
+                          index=pd.DatetimeIndex(idx))
+        secs = parse_lookback(lookback)
+        cutoff = pd.Timestamp.now(tz="UTC") - pd.Timedelta(seconds=secs)
+        return df[df.index >= cutoff] if len(df) > 30 else df
+
+
+class ChainProvider:
+    """Try providers in order; return the first non-empty result."""
+    name = "chain"
+
+    def __init__(self, providers: list):
+        self.providers = providers
+        self.name = "+".join(p.name for p in providers)
+
+    def fetch(self, symbol: str, interval: str, lookback: str) -> pd.DataFrame:
+        for p in self.providers:
+            df = p.fetch(symbol, interval, lookback)
+            if df is not None and not df.empty:
+                return df
+        return pd.DataFrame(columns=_EMPTY)
+
+
 class YFinanceProvider:
     """Optional fallback using the yfinance package (if installed)."""
     name = "yfinance"
@@ -147,11 +224,25 @@ class YFinanceProvider:
         return df.dropna(subset=["close"]).sort_index()
 
 
-def get_provider(cfg):
-    name = str(cfg.get("market_data.provider", "yahoo")).lower()
+def _build_one(name: str, cfg):
+    name = (name or "").lower()
     if name == "yfinance":
         return YFinanceProvider()
-    return YahooChartProvider(
-        retries=int(cfg.get("market_data.max_retries", 4)),
-        timeout=int(cfg.get("market_data.request_timeout", 20)),
-    )
+    if name == "alphavantage":
+        return AlphaVantageProvider(cfg.secret("ALPHAVANTAGE_API_KEY"))
+    if name == "yahoo":
+        return YahooChartProvider(
+            retries=int(cfg.get("market_data.max_retries", 4)),
+            timeout=int(cfg.get("market_data.request_timeout", 20)))
+    return None
+
+
+def get_provider(cfg):
+    names = [cfg.get("market_data.provider", "yahoo")]
+    fb = cfg.get("market_data.fallback_provider", None)
+    if fb:
+        names.append(fb)
+    providers = [p for p in (_build_one(n, cfg) for n in names) if p]
+    if not providers:
+        providers = [YahooChartProvider()]
+    return providers[0] if len(providers) == 1 else ChainProvider(providers)

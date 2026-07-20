@@ -85,3 +85,33 @@ def test_source_weight_longest_match():
     assert ep.source_weight("x/@deitaone") == 0.65   # specific beats generic x/
     assert ep.source_weight("x/@randomguy") == 0.3    # falls back to x/
     assert ep.source_weight("weirdsource") == 0.4     # unknown
+
+
+def test_alphavantage_intraday_returns_empty_without_call():
+    # Must NOT hit the network for intraday (no oil intraday + saves quota).
+    from oiltrader.providers import AlphaVantageProvider
+    av = AlphaVantageProvider(api_key="KEY")
+    assert av.fetch("BZ=F", "5m", "5d").empty
+    assert av.fetch("BZ=F", "1m", "1d").empty
+    # unknown symbol also empty
+    assert av.fetch("AAPL", "1d", "1y").empty
+
+
+def test_chain_provider_returns_first_nonempty():
+    import pandas as pd
+    from oiltrader.providers import ChainProvider
+
+    class Empty:
+        name = "empty"
+        def fetch(self, *a): return pd.DataFrame(columns=["close"])
+
+    class Good:
+        name = "good"
+        def fetch(self, *a):
+            return pd.DataFrame({"open": [1], "high": [1], "low": [1],
+                                 "close": [81.6], "volume": [0]})
+
+    chain = ChainProvider([Empty(), Good()])
+    df = chain.fetch("BZ=F", "1d", "1y")
+    assert not df.empty and df["close"].iloc[-1] == 81.6
+    assert chain.name == "empty+good"

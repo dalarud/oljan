@@ -37,6 +37,7 @@ class ChartContext:
     dist_to_support_pct: Optional[float] = None
     dist_to_resistance_pct: Optional[float] = None
     n_candles: int = 0
+    timeframe: str = ""           # interval the context was computed from
 
     def rsi_state(self) -> str:
         if self.rsi >= 70:
@@ -131,7 +132,8 @@ def support_resistance(df: pd.DataFrame, price: float, lookback: int = 300,
     return supports, resistances
 
 
-def compute(df: pd.DataFrame, symbol: str, cfg) -> ChartContext:
+def compute(df: pd.DataFrame, symbol: str, cfg,
+            timeframe: str = "") -> ChartContext:
     """Compute the full chart context for the latest candle."""
     i = cfg.get
     ema_fast_p = i("indicators.ema_fast", 12)
@@ -202,4 +204,5 @@ def compute(df: pd.DataFrame, symbol: str, cfg) -> ChartContext:
         dist_to_support_pct=dist_sup,
         dist_to_resistance_pct=dist_res,
         n_candles=len(df),
+        timeframe=timeframe,
     )

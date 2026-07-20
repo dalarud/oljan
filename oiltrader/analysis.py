@@ -305,13 +305,17 @@ class Analyzer:
         if chart:
             _, _, arrows = self._mtf_alignment(event, mtf_trends)
             disp = self.names.get(chart.symbol, chart.symbol)
-            line = (f"📊 {disp} {tf} {chart.price:.2f} · "
+            ctf = chart.timeframe or tf
+            line = (f"📊 {disp} {ctf} {chart.price:.2f} · "
                     f"trend {chart.trend} · RSI {chart.rsi:.0f} "
                     f"({chart.rsi_state()}) · vol {chart.rel_volume:.1f}x")
             if chart.nearest_support:
                 line += f" · stöd {chart.nearest_support:.2f}"
             if chart.nearest_resistance:
                 line += f" · motstånd {chart.nearest_resistance:.2f}"
+            if ctf == "1d":
+                line += ("\n⚠️ DAGSDATA (ingen intradagsfeed) – nivåerna är "
+                         "dagsbaserade, inte 5m.")
             if arrows:
                 line += f"\nMTF: {arrows}"
             parts.append(line)
