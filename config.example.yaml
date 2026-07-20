@@ -213,6 +213,27 @@ directional_lexicon:
   "recession": -1.8
   "spr release": -1.8
   "spr sale": -1.8
+  # military / physical supply-risk (bullish for oil)
+  "air strike": 2.2
+  "airstrike": 2.2
+  "missile strike": 2.3
+  "military strike": 2.3
+  "strikes on": 2.0
+  "strikes against": 2.0
+  "launched strikes": 2.2
+  "missile": 1.8
+  "drone attack": 2.0
+  "bombing": 2.0
+  "retaliation": 1.8
+  "military action": 1.8
+  "blockade": 2.2
+  "seized tanker": 2.3
+  "halts exports": 2.4
+  "force majeure": 2.2
+  # de-escalation (bearish for oil)
+  "de-escalation": -2.0
+  "truce": -2.0
+  "talks resume": -1.6
 
 classification:
   # Source credibility weights (0..1) used in substance vs. noise scoring.
@@ -268,7 +289,8 @@ notifications:
   verbosity: "compact"          # compact (short, glanceable) | full (all detail)
   stale_after_minutes: 20       # price data older than this => no levels + warning
   send_charts: true
-  min_notify_score: 2.5         # only push events at/above this relevance
+  min_notify_score: 2.5         # (batch relevance floor; conviction gate below dominates)
+  min_conviction: 40            # only push alerts at/above this conviction (0-100)
   dedup_minutes: 30             # suppress near-duplicate notifications
   quiet_hours: []               # e.g. ["01:00-06:00"] in UTC; empty = always
   heartbeat_hours: 12           # periodic "still alive" ping (0 = disabled)

@@ -69,6 +69,7 @@ class Daemon:
         self._running = True
 
         self.min_notify_score = cfg.get("notifications.min_notify_score", 2.5)
+        self.min_conviction = cfg.get("notifications.min_conviction", 40)
         self.always_notify_substantial = cfg.get(
             "notifications.always_notify_substantial", True)
         self.max_news_age_min = cfg.get("news.max_age_minutes", 360)
@@ -315,14 +316,18 @@ class Daemon:
         levels = self._key_levels(chart)
         analysis = self.analyzer.build(event, chart, mtf, levels)
 
+        # Gate on CONVICTION (not raw relevance) so low-signal, neutral or
+        # single-source noise is suppressed; substantial + corroborated events
+        # always get through.
         should_notify = (
-            event.relevance >= self.min_notify_score
-            or (self.always_notify_substantial and event.is_substantial)
+            analysis.conviction >= self.min_conviction
+            or (self.always_notify_substantial and event.is_substantial
+                and event.n_sources >= 2)
         )
-        log.info("EVENT [%s/%s] rel=%.1f sub=%.2f manip=%.2f conf=%s notify=%s | %s",
-                 event.category, event.direction, event.relevance,
-                 event.substance, event.manipulation, event.confidence,
-                 should_notify, event.item.title[:80])
+        log.info("EVENT [%s/%s] conv=%d rel=%.1f sub=%.2f manip=%.2f n=%d notify=%s | %s",
+                 event.category, event.direction, analysis.conviction,
+                 event.relevance, event.substance, event.manipulation,
+                 event.n_sources, should_notify, event.item.title[:80])
 
         if not should_notify:
             return
