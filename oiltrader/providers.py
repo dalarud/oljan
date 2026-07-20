@@ -184,6 +184,98 @@ class AlphaVantageProvider:
         return df[df.index >= cutoff] if len(df) > 30 else df
 
 
+class TwelveDataProvider:
+    """Twelve Data (free tier). Real OHLC intraday.
+
+    The free plan does NOT expose Brent/WTI futures intraday (paywalled), but
+    it does serve the oil ETFs (BNO≈Brent, USO≈WTI) intraday. Those track the
+    benchmark in % but not in absolute $/barrel, so with scale_to_benchmark we
+    anchor the ETF's intraday series to the benchmark's real latest daily close
+    (from an anchor provider, e.g. Alpha Vantage) — giving a correct absolute
+    level plus real intraday structure. It is an ESTIMATE (ETF tracking error),
+    labelled as such in the notification.
+    """
+    name = "twelvedata"
+    URL = "https://api.twelvedata.com/time_series"
+    _IV = {"1m": "1min", "5m": "5min", "15m": "15min", "30m": "30min",
+           "1h": "1h", "1d": "1day"}
+    _IV_SECS = {"1min": 60, "5min": 300, "15min": 900, "30min": 1800,
+                "1h": 3600, "1day": 86400}
+
+    def __init__(self, api_key: str, symbol_map: dict | None = None,
+                 scale_to_benchmark: bool = False, anchor=None, timeout: int = 20):
+        self.api_key = api_key
+        self.symbol_map = symbol_map or {"BZ=F": "BNO", "CL=F": "USO"}
+        self.scale = scale_to_benchmark
+        self.anchor = anchor
+        self.timeout = timeout
+        self._anchor_cache: dict = {}
+        self.last_source = self.name
+
+    def fetch(self, symbol: str, interval: str, lookback: str) -> pd.DataFrame:
+        td = self.symbol_map.get(symbol)
+        iv = self._IV.get(interval)
+        if not td or not iv or not self.api_key:
+            return pd.DataFrame(columns=_EMPTY)
+        n = min(int(parse_lookback(lookback) / self._IV_SECS[iv]) + 5, 5000)
+        try:
+            resp = requests.get(self.URL, params={
+                "symbol": td, "interval": iv, "outputsize": n,
+                "timezone": "UTC", "apikey": self.api_key}, timeout=self.timeout)
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception as e:
+            log.warning("TwelveData fetch %s (%s) failed: %s", td, iv, e)
+            return pd.DataFrame(columns=_EMPTY)
+        vals = payload.get("values")
+        if not vals:
+            log.warning("TwelveData %s: %s", td,
+                        str(payload.get("message") or payload)[:120])
+            return pd.DataFrame(columns=_EMPTY)
+        rows = []
+        for v in vals:
+            try:
+                rows.append((pd.Timestamp(v["datetime"], tz="UTC"),
+                             float(v["open"]), float(v["high"]),
+                             float(v["low"]), float(v["close"]),
+                             float(v.get("volume", 0) or 0)))
+            except (KeyError, ValueError, TypeError):
+                continue
+        if not rows:
+            return pd.DataFrame(columns=_EMPTY)
+        rows.sort(key=lambda x: x[0])
+        df = pd.DataFrame(
+            {"open": [r[1] for r in rows], "high": [r[2] for r in rows],
+             "low": [r[3] for r in rows], "close": [r[4] for r in rows],
+             "volume": [r[5] for r in rows]},
+            index=pd.DatetimeIndex([r[0] for r in rows]))
+        self.last_source = self.name
+        if self.scale and self.anchor:
+            anchor_close = self._benchmark_close(symbol)
+            last = df["close"].iloc[-1]
+            if anchor_close and last:
+                f = anchor_close / last
+                for c in ("open", "high", "low", "close"):
+                    df[c] = df[c] * f
+                self.last_source = f"twelvedata-scaled({self.symbol_map[symbol]}→benchmark)"
+        return df
+
+    def _benchmark_close(self, symbol: str):
+        import datetime as _dt
+        key = (symbol, _dt.date.today().isoformat())
+        if key in self._anchor_cache:
+            return self._anchor_cache[key]
+        close = None
+        try:
+            adf = self.anchor.fetch(symbol, "1d", "10d")
+            if adf is not None and not adf.empty:
+                close = float(adf["close"].iloc[-1])
+        except Exception as e:
+            log.warning("benchmark anchor fetch failed: %s", e)
+        self._anchor_cache[key] = close
+        return close
+
+
 class ChainProvider:
     """Try providers in order; return the first non-empty result."""
     name = "chain"
@@ -191,12 +283,15 @@ class ChainProvider:
     def __init__(self, providers: list):
         self.providers = providers
         self.name = "+".join(p.name for p in providers)
+        self.last_source = None
 
     def fetch(self, symbol: str, interval: str, lookback: str) -> pd.DataFrame:
         for p in self.providers:
             df = p.fetch(symbol, interval, lookback)
             if df is not None and not df.empty:
+                self.last_source = getattr(p, "last_source", None) or p.name
                 return df
+        self.last_source = None
         return pd.DataFrame(columns=_EMPTY)
 
 
@@ -230,6 +325,15 @@ def _build_one(name: str, cfg):
         return YFinanceProvider()
     if name == "alphavantage":
         return AlphaVantageProvider(cfg.secret("ALPHAVANTAGE_API_KEY"))
+    if name == "twelvedata":
+        scale = bool(cfg.get("market_data.twelvedata_scale_to_benchmark", True))
+        anchor = (AlphaVantageProvider(cfg.secret("ALPHAVANTAGE_API_KEY"))
+                  if scale else None)
+        return TwelveDataProvider(
+            cfg.secret("TWELVEDATA_API_KEY"),
+            symbol_map=cfg.get("market_data.twelvedata_symbols",
+                               {"BZ=F": "BNO", "CL=F": "USO"}),
+            scale_to_benchmark=scale, anchor=anchor)
     if name == "yahoo":
         return YahooChartProvider(
             retries=int(cfg.get("market_data.max_retries", 4)),
@@ -240,7 +344,9 @@ def _build_one(name: str, cfg):
 def get_provider(cfg):
     names = [cfg.get("market_data.provider", "yahoo")]
     fb = cfg.get("market_data.fallback_provider", None)
-    if fb:
+    if isinstance(fb, list):
+        names += fb
+    elif fb:
         names.append(fb)
     providers = [p for p in (_build_one(n, cfg) for n in names) if p]
     if not providers:

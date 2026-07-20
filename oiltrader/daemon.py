@@ -144,8 +144,9 @@ class Daemon:
                 df = self.market.get_candles(sym, interval)
                 if df is None or df.empty or len(df) < 30:
                     continue
-                tf_charts[interval] = compute_indicators(
-                    df, sym, self.cfg, timeframe=interval)
+                ctx = compute_indicators(df, sym, self.cfg, timeframe=interval)
+                ctx.source = self.market.source_of(sym, interval)
+                tf_charts[interval] = ctx
             if not tf_charts:
                 # No intraday feed -> fall back to REAL daily levels so we
                 # still show correct numbers (clearly labelled as daily).
@@ -153,8 +154,9 @@ class Daemon:
                 if ddf is None or ddf.empty or len(ddf) < 30:
                     ddf = self.market.refresh_daily(sym)
                 if ddf is not None and len(ddf) >= 30:
-                    tf_charts["1d"] = compute_indicators(
-                        ddf, sym, self.cfg, timeframe="1d")
+                    dctx = compute_indicators(ddf, sym, self.cfg, timeframe="1d")
+                    dctx.source = self.market.source_of(sym, "1d")
+                    tf_charts["1d"] = dctx
                     log.info("%s: using daily levels (intraday unavailable)", sym)
             if tf_charts:
                 self._chart_cache[sym] = tf_charts

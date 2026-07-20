@@ -51,6 +51,7 @@ class MarketData:
             df = self._fetch(symbol, interval, lookback)
             if not df.empty:
                 self.storage.upsert_candles(symbol, interval, df)
+                self._record_source(symbol, interval)
             out[interval] = df
             if self.request_spacing:
                 time.sleep(self.request_spacing)
@@ -60,7 +61,16 @@ class MarketData:
         df = self._fetch(symbol, "1d", self.daily_lookback)
         if not df.empty:
             self.storage.upsert_candles(symbol, "1d", df)
+            self._record_source(symbol, "1d")
         return df
+
+    def source_of(self, symbol: str, interval: str) -> str:
+        return self.storage.get_meta(f"src:{symbol}:{interval}", "") or ""
+
+    def _record_source(self, symbol: str, interval: str) -> None:
+        src = getattr(self.provider, "last_source", None) or \
+            getattr(self.provider, "name", "")
+        self.storage.set_meta(f"src:{symbol}:{interval}", src or "")
 
     def get_candles(self, symbol: str, interval: str,
                     min_rows: int = 40) -> pd.DataFrame:
@@ -71,6 +81,7 @@ class MarketData:
             fresh = self._fetch(symbol, interval, lookback)
             if not fresh.empty:
                 self.storage.upsert_candles(symbol, interval, fresh)
+                self._record_source(symbol, interval)
                 df = self.storage.get_candles(symbol, interval)
         return df
 

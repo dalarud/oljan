@@ -316,6 +316,9 @@ class Analyzer:
             if ctf == "1d":
                 line += ("\n⚠️ DAGSDATA (ingen intradagsfeed) – nivåerna är "
                          "dagsbaserade, inte 5m.")
+            elif "scaled" in (chart.source or ""):
+                line += ("\nℹ️ Intradag via BNO/USO-ETF skalad till Brent-nivå "
+                         "(estimat, ej exakt $/fat).")
             if arrows:
                 line += f"\nMTF: {arrows}"
             parts.append(line)

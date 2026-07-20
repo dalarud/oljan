@@ -38,6 +38,7 @@ class ChartContext:
     dist_to_resistance_pct: Optional[float] = None
     n_candles: int = 0
     timeframe: str = ""           # interval the context was computed from
+    source: str = ""              # data provider that served the candles
 
     def rsi_state(self) -> str:
         if self.rsi >= 70:
