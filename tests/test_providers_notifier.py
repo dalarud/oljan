@@ -55,3 +55,33 @@ def test_notifier_title_prefers_headline_and_is_latin1():
 def test_truncate():
     assert _truncate("abc", 10) == "abc"
     assert len(_truncate("a" * 100, 10)) == 10
+
+
+def test_x_noise_filter():
+    from oiltrader.collectors.x import _is_noise, _rewrite_to_x
+    assert _is_noise("25.315792, 60.624411") is True
+    assert _is_noise("Inflationary.") is True
+    assert _is_noise("RT by @x: something happened here today") is True
+    assert _is_noise("IRAN ATTACKS TANKER IN STRAIT OF HORMUZ") is False
+    assert _rewrite_to_x("https://nitter.net/DeItaone/status/123#m", "DeItaone") \
+        == "https://x.com/DeItaone/status/123"
+
+
+def test_source_weight_longest_match():
+    import types
+    from oiltrader.events import EventProcessor
+    cfg = types.SimpleNamespace(
+        get=lambda k, d=None: {
+            "relevance.keywords": {}, "relevance.min_score": 2.0,
+            "classification.source_weights": {
+                "x/": 0.3, "deitaone": 0.65, "unknown": 0.4},
+            "classification.corroboration_window_minutes": 90,
+            "classification.confirmation_candles": 4,
+            "classification.substance_threshold": 0.5,
+            "classification.manipulation_threshold": 0.55,
+        }.get(k, d),
+        primary_instrument={"symbol": "CL=F"})
+    ep = EventProcessor(cfg, storage=None, sentiment=None)
+    assert ep.source_weight("x/@deitaone") == 0.65   # specific beats generic x/
+    assert ep.source_weight("x/@randomguy") == 0.3    # falls back to x/
+    assert ep.source_weight("weirdsource") == 0.4     # unknown

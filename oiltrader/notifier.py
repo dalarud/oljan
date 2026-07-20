@@ -109,7 +109,7 @@ class Notifier:
                 try:
                     with open(chart_path, "rb") as fh:
                         put_headers = {
-                            "Title": _truncate(f"Chart: {title}", 100),
+                            "Title": _ascii_header(_truncate(f"Chart: {title}", 90)),
                             "Priority": self.ntfy_priority,
                             "Filename": "chart.png", "Tags": "chart_with_upwards_trend",
                             **auth,

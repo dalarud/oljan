@@ -92,11 +92,17 @@ class EventProcessor:
         return best
 
     def source_weight(self, source: str) -> float:
+        # Most-specific (longest) matching key wins, so "x/@deitaone" is scored
+        # by its own weight rather than a generic "x/" fallback.
         s = (source or "").lower()
+        best_w, best_len = None, -1
         for key, w in self.source_weights.items():
-            if key in s:
-                return w
-        return self.source_weights.get("unknown", 0.4)
+            k = key.lower()
+            if k == "unknown":
+                continue
+            if k in s and len(k) > best_len:
+                best_w, best_len = w, len(k)
+        return best_w if best_w is not None else self.source_weights.get("unknown", 0.4)
 
     # -------------------------------------------------------------- assessment
     def process(self, item: NewsItem, chart: Optional[ChartContext]) -> Optional[Event]:

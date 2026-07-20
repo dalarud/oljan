@@ -76,8 +76,29 @@ social:
   stocktwits_enabled: true   # best-effort, keyless (may rate-limit)
   stocktwits_symbols: ["CL_F", "USOIL"]
   stocktwits_poll_seconds: 300
-  # X/Twitter free access is heavily restricted and unreliable; off by default.
-  x_enabled: false
+
+  # --- X / Twitter: intelligence-grade, demonstrably-early sources ---
+  # Read via Nitter RSS (keyless). If you have an official X API v2 bearer
+  # token, set X_BEARER_TOKEN in .env and it is preferred automatically.
+  x_enabled: true            # polled together with the news task
+  x_nitter_instances:
+    - "https://nitter.net"
+    - "https://nitter.tiekoetter.com"
+    - "https://xcancel.com"
+  # Curated for being EARLY on oil-relevant information. Rationale each:
+  x_accounts:
+    # Headline relays – mirror Bloomberg/Reuters terminal at wire speed:
+    - "DeItaone"        # Walter Bloomberg – Bloomberg terminal headlines, seconds-early
+    - "FirstSquawk"     # breaking market/macro headlines
+    - "LiveSquawk"      # breaking market/macro headlines
+    - "financialjuice"  # fast headline aggregator
+    # Physical-oil intelligence – early on real supply disruptions:
+    - "TankerTrackers"  # satellite/AIS tanker & loading tracking
+    # Geopolitics / OSINT – early on conflict that moves supply:
+    - "sentdefender"    # OSINTdefender – military/geopolitics
+    - "Faytuks"         # breaking geopolitics/OSINT
+    - "WarMonitors"     # conflict OSINT
+    - "spectatorindex"  # breaking world news
 
 relevance:
   # An item must score >= min_score to be treated as "relevant".
@@ -159,16 +180,31 @@ directional_lexicon:
 
 classification:
   # Source credibility weights (0..1) used in substance vs. noise scoring.
+  # Most-specific (longest) matching key wins, so a curated X handle is scored
+  # by its own weight rather than the generic "x/" fallback.
   source_weights:
     "eia.gov": 1.0
     "reuters": 1.0
     "reutersagency.com": 1.0
+    "iea.org": 0.95
+    "opec.org": 0.95
     "oilprice.com": 0.7
+    "rigzone.com": 0.7
     "investing.com": 0.7
-    "newsapi": 0.7
+    "newsapi": 0.65
+    # curated X intelligence handles (early + relatively reliable):
+    "tankertrackers": 0.7
+    "deitaone": 0.65
+    "firstsquawk": 0.6
+    "livesquawk": 0.6
+    "financialjuice": 0.55
+    "sentdefender": 0.5
+    "faytuks": 0.5
+    "warmonitors": 0.45
+    "spectatorindex": 0.45
+    "x/": 0.3          # generic / uncurated X
     "reddit": 0.3
     "stocktwits": 0.2
-    "x": 0.3
     "unknown": 0.4
   corroboration_window_minutes: 90
   confirmation_candles: 4       # candles to check price/volume confirmation

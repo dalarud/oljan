@@ -10,6 +10,7 @@ This is decision *support*, not automated trading and not financial advice.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional
 
 from .events import Event
@@ -268,9 +269,30 @@ class Analyzer:
         if uncertainties:
             parts.append("\n⚠️ *Osäkerheter*\n- " + "\n- ".join(uncertainties))
 
-        parts.append(f"\n📰 Källa: {event.item.source}"
-                     + (f" · {event.item.url}" if event.item.url else ""))
+        published = event.item.ts
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=timezone.utc)
+        detected = datetime.now(timezone.utc)
+        parts.append(
+            f"\n📰 Källa: {event.item.source}\n"
+            f"🔗 Länk: {event.item.url or '(saknas)'}\n"
+            f"🕒 Publicerad: {published:%Y-%m-%d %H:%M UTC}  ·  "
+            f"upptäckt: {detected:%H:%M UTC} ({_fmt_latency(published, detected)})")
         if event.sentiment.matched:
             parts.append("🔬 Nyckelord: " + event.sentiment.explain())
         parts.append("\n_Beslutsstöd, ej finansiell rådgivning._")
         return "\n".join(parts)
+
+
+def _fmt_latency(published, detected) -> str:
+    """Human-readable delay between publication and detection."""
+    secs = (detected - published).total_seconds()
+    if secs < 0:
+        return "nypublicerad"
+    if secs < 90:
+        return f"+{int(secs)}s"
+    if secs < 5400:
+        return f"+{int(secs // 60)}m"
+    if secs < 172800:
+        return f"+{int(secs // 3600)}h"
+    return f"+{int(secs // 86400)}d"

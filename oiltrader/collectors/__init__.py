@@ -13,6 +13,7 @@ from .eia import EiaCollector
 from .reddit import RedditCollector
 from .stocktwits import StocktwitsCollector
 from .newsapi import NewsApiCollector
+from .x import XCollector
 
 log = logging.getLogger("oljan.collectors")
 
@@ -51,6 +52,16 @@ def build_collectors(cfg, storage) -> list[Collector]:
     if cfg.get("social.stocktwits_enabled", False):
         collectors.append(StocktwitsCollector(
             cfg.get("social.stocktwits_symbols", [])))
+
+    if cfg.get("social.x_enabled", False):
+        accounts = cfg.get("social.x_accounts", []) or []
+        instances = cfg.get("social.x_nitter_instances", []) or []
+        if accounts and (instances or cfg.secret("X_BEARER_TOKEN")):
+            collectors.append(XCollector(
+                accounts, instances, cfg.secret("X_BEARER_TOKEN")))
+        else:
+            log.warning("x_enabled but no accounts / nitter instances / token; "
+                        "skipping X collector")
 
     log.info("Active collectors: %s", [c.name for c in collectors])
     return collectors

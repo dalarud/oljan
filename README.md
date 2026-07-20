@@ -176,9 +176,25 @@ Push-notiser via **ntfy kräver ingen nyckel alls**. För full funktion:
 1. Gratis dev-nyckel: https://newsapi.org (100 anrop/dygn).
 2. `NEWSAPI_KEY` i `.env`, `news.newsapi_enabled: true`.
 
-> **X/Twitter** är avstängt som standard: gratis åtkomst är kraftigt begränsad
-> och opålitlig. `collectors/` är pluggbart – lägg till en X-insamlare om du
-> har API-åtkomst (se [Utöka systemet](#utöka-systemet)).
+### 6. X / Twitter – underrättelsekällor (keylöst via Nitter)
+X-innehåll hämtas **nyckelfritt via Nitter-RSS** för en kurerad lista av konton
+som bevisligen är *tidiga* på oljerelevant information (`social.x_accounts`):
+- **Headline-reläer** (Bloomberg/Reuters-terminalens hastighet): `DeItaone`
+  (Walter Bloomberg), `FirstSquawk`, `LiveSquawk`, `financialjuice`.
+- **Fysisk olje-underrättelse**: `TankerTrackers` (satellit/AIS-spårning av
+  tankfartyg – tidiga på verkliga leveransstörningar).
+- **Geopolitik/OSINT**: `sentdefender`, `Faytuks`, `WarMonitors`, `spectatorindex`.
+
+Länkar skrivs om till kanoniska `x.com`-länkar. Varje X-konto har en egen
+källvikt i `classification.source_weights` (reläer/tankertrackers högre, OSINT
+lägre). Brus filtreras bort (retweets, fragment, koordinat-/sifferdumpar). Har
+du officiell X API v2-åtkomst: sätt `X_BEARER_TOKEN` i `.env` så används den.
+Nitter-instanser kan ligga nere – flera anges i `social.x_nitter_instances`
+och systemet växlar mellan dem. Stäng av med `social.x_enabled: false`.
+
+> Varje notis visar **exakt länk**, **publiceringstid (UTC)** och **latens**
+> (hur länge sedan uppgiften publicerades → upptäcktes). Latensen avslöjar t.ex.
+> när en "Breaking"-post egentligen är dagar gammal.
 
 ---
 
