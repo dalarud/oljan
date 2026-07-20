@@ -28,13 +28,14 @@ log = logging.getLogger("oljan.stream")
 
 class _CollectorThread(threading.Thread):
     def __init__(self, collector, interval: float, queue: "Queue",
-                 stop: threading.Event, jitter: float = 0.0):
+                 stop: threading.Event, jitter: float = 0.0, health=None):
         super().__init__(daemon=True, name=f"collect-{collector.name}")
         self.collector = collector
         self.interval = max(interval, 5.0)
         self.queue = queue
         self.stop = stop
         self.jitter = jitter
+        self.health = health
 
     def run(self) -> None:
         if self.jitter:
@@ -42,18 +43,24 @@ class _CollectorThread(threading.Thread):
         while not self.stop.is_set():
             start = time.monotonic()
             try:
+                n = 0
                 for item in self.collector.collect():
                     self.queue.put(item)
+                    n += 1
+                if self.health:
+                    self.health.record_ok(self.collector.name, n)
             except Exception as e:
                 log.warning("collector %s error: %s", self.collector.name,
                             str(e)[:80])
+                if self.health:
+                    self.health.record_err(self.collector.name, str(e))
             elapsed = time.monotonic() - start
             self.stop.wait(max(1.0, self.interval - elapsed))
 
 
 class NewsStreamEngine:
     def __init__(self, cfg, collectors, on_story: Callable, seen, mark_seen,
-                 source_weight, primary_symbol: str):
+                 source_weight, primary_symbol: str, health=None):
         self.cfg = cfg
         self.collectors = collectors
         self.on_story = on_story
@@ -61,6 +68,7 @@ class NewsStreamEngine:
         self.mark_seen = mark_seen
         self.source_weight = source_weight
         self.primary = primary_symbol
+        self.health = health
         self.stop = threading.Event()
         self.queue: "Queue" = Queue()
         self.pending: list[list] = []   # [Story, deadline_monotonic]
@@ -100,7 +108,8 @@ class NewsStreamEngine:
     def start(self) -> None:
         for i, c in enumerate(self.collectors):
             t = _CollectorThread(c, self._interval_for(c.name), self.queue,
-                                 self.stop, jitter=min(i * 1.5, 10))
+                                 self.stop, jitter=min(i * 1.5, 10),
+                                 health=self.health)
             t.start()
             self._threads.append(t)
         self._worker = threading.Thread(target=self._run_worker, daemon=True,

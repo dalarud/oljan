@@ -25,6 +25,7 @@ from .market_data import MarketData
 from .notifier import Notifier
 from .sentiment import SentimentEngine
 from .storage import Storage
+from .watchdog import SourceHealth, Watchdog
 
 log = logging.getLogger("oljan.daemon")
 
@@ -59,6 +60,7 @@ class Daemon:
         self.analyzer = Analyzer(cfg, self.historical)
         self.notifier = Notifier(cfg, self.storage)
         self.collectors = build_collectors(cfg, self.storage)
+        self.health = SourceHealth()
 
         self.symbols = [i["symbol"] for i in cfg.instruments]
         self.primary = cfg.primary_instrument["symbol"]
@@ -67,6 +69,8 @@ class Daemon:
         # cache[symbol][timeframe] -> ChartContext
         self._chart_cache: dict[str, dict[str, ChartContext]] = {}
         self._running = True
+        self.watchdog = Watchdog(cfg, self.health, self.market, self.notifier,
+                                 self.storage, self.primary)
 
         self.min_notify_score = cfg.get("notifications.min_notify_score", 2.5)
         self.min_conviction = cfg.get("notifications.min_conviction", 40)
@@ -96,6 +100,9 @@ class Daemon:
         if self.pulse_hours and self.pulse_hours > 0:
             self.tasks.append(Task("pulse", self._task_pulse,
                                    self.pulse_hours * 3600))
+        if cfg.get("watchdog.enabled", True):
+            self.tasks.append(Task("watchdog", self._task_watchdog,
+                                   cfg.get("watchdog.check_seconds", 300)))
         self._tasks_by_name = {t.name: t for t in self.tasks}
         self._base_interval = base
 
@@ -128,7 +135,7 @@ class Daemon:
             self._engine = NewsStreamEngine(
                 self.cfg, self.collectors, self._handle_story,
                 self.storage.seen, self.storage.mark_seen,
-                self.events.source_weight, self.primary)
+                self.events.source_weight, self.primary, health=self.health)
             self._safe(self._engine.prime, None)
             self._engine.start()
 
@@ -231,10 +238,13 @@ class Daemon:
             try:
                 for fut in as_completed(futs, timeout=self.collector_timeout):
                     try:
-                        collected.extend(list(fut.result()))
+                        items = list(fut.result())
+                        collected.extend(items)
+                        self.health.record_ok(futs[fut], len(items))
                     except Exception as e:
                         log.warning("collector %s failed: %s",
                                     futs[fut], str(e)[:80])
+                        self.health.record_err(futs[fut], str(e))
             except FTimeout:
                 log.warning("collectors exceeded %ss; using partial results",
                             self.collector_timeout)
@@ -276,6 +286,9 @@ class Daemon:
     def _task_mature(self) -> None:
         self.historical.mature_events()
 
+    def _task_watchdog(self) -> None:
+        self.watchdog.evaluate()
+
     def _task_pulse(self) -> None:
         from .pulse import build_pulse
         chart = self._primary_chart(self.primary)
@@ -290,9 +303,12 @@ class Daemon:
         price = self.market.last_price(self.primary)
         px = f"{price:.2f}" if price else "n/a"
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        wd = self.storage.get_meta("watchdog_status", "ok") or "ok"
+        health = "✅ alla källor svarar" if wd == "ok" else "⚠️ degraderad insamling"
         self.notifier.heartbeat(
             f"💓 Oljan lever. {self.primary} {px}. {ts}. "
-            f"Bevakar {len(self.collectors)} källor.")
+            f"Bevakar {len(self.collectors)} källor · {health}.\n"
+            f"_{self.watchdog.status_line()}_")
         self.storage.set_meta("last_heartbeat", ts)
 
     # ---------------------------------------------------------------- helpers
