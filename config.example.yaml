@@ -1,0 +1,177 @@
+# ======================================================================
+# Oljan – crude oil (WTI/Brent) watch & analysis engine
+# Copy to config.yaml and adjust. Secrets go in .env, not here.
+# ======================================================================
+
+general:
+  timezone: "UTC"            # all internal calculations are UTC
+  loop_interval_seconds: 30  # base tick of the daemon scheduler
+  data_dir: "./data"         # sqlite db, cache, chart images, logs
+  log_level: "INFO"
+
+instruments:
+  # Yahoo Finance symbols. CL=F = WTI front-month, BZ=F = Brent front-month.
+  - name: "WTI"
+    symbol: "CL=F"
+    primary: true
+  - name: "Brent"
+    symbol: "BZ=F"
+    primary: false
+
+market_data:
+  provider: "yfinance"
+  intraday_interval: "15m"   # candle size used for signal analysis
+  intraday_lookback: "30d"   # how far back to pull intraday candles
+  daily_lookback: "5y"       # daily candles for regime / base-rate context
+  refresh_seconds: 120       # how often to refresh price data
+
+indicators:
+  ema_fast: 12
+  ema_slow: 26
+  rsi_period: 14
+  atr_period: 14
+  bb_period: 20
+  bb_std: 2.0
+  sr_lookback: 300           # candles used for support/resistance detection
+  sr_pivot_width: 3          # bars on each side to qualify a swing pivot
+  sr_cluster_pct: 0.5        # merge levels within 0.5% of each other
+  volume_avg_period: 20
+
+position:
+  # Makes recommendations leverage-aware. Purely informational.
+  leverage: 10
+  side: "long"               # long | short | flat
+  entry_price: null          # optional; enables PnL/liquidation-distance notes
+
+news:
+  poll_seconds: 180
+  rss_feeds:
+    - "https://oilprice.com/rss/main"
+    - "https://www.investing.com/rss/commodities_Crude_Oil.rss"
+    - "https://www.eia.gov/rss/todayinenergy.xml"
+    - "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"
+  newsapi_enabled: false     # requires NEWSAPI_KEY in .env
+  newsapi_query: "crude oil OR WTI OR Brent OR OPEC"
+
+eia:
+  enabled: false             # requires EIA_API_KEY in .env
+  poll_seconds: 3600
+
+social:
+  reddit_enabled: false      # requires REDDIT_CLIENT_ID / SECRET in .env
+  reddit_subreddits: ["oil", "energy", "commodities"]
+  reddit_poll_seconds: 300
+  stocktwits_enabled: true   # best-effort, keyless (may rate-limit)
+  stocktwits_symbols: ["CL_F", "USOIL"]
+  stocktwits_poll_seconds: 300
+  # X/Twitter free access is heavily restricted and unreliable; off by default.
+  x_enabled: false
+
+relevance:
+  # An item must score >= min_score to be treated as "relevant".
+  min_score: 2.0
+  # keyword (lowercased substring) -> weight. Higher = more market-moving.
+  keywords:
+    opec: 3.0
+    "opec+": 3.5
+    saudi: 2.0
+    russia: 2.0
+    iran: 2.5
+    sanction: 2.5
+    inventory: 2.5
+    stockpile: 2.0
+    drawdown: 2.5
+    draw: 1.5
+    build: 2.0
+    eia: 2.0
+    api: 1.5
+    supply: 1.5
+    demand: 1.5
+    production: 2.0
+    output: 1.8
+    war: 2.5
+    strike: 1.5
+    ceasefire: 2.5
+    hormuz: 3.0
+    pipeline: 2.0
+    refinery: 1.8
+    hurricane: 2.0
+    recession: 2.0
+    fed: 1.5
+    spr: 2.0
+
+directional_lexicon:
+  # Impact on the OIL PRICE, not generic sentiment. This matters:
+  # "war" is negative sentiment but BULLISH for oil.
+  # positive weight = bullish, negative = bearish. Range ~[-3, 3].
+  "production cut": 2.6
+  "supply cut": 2.5
+  "opec cut": 2.8
+  "output cut": 2.5
+  "unexpected draw": 2.5
+  "larger than expected draw": 2.6
+  "surprise draw": 2.4
+  "drawdown": 2.0
+  "supply disruption": 2.5
+  "outage": 2.0
+  "sanction": 2.0
+  "sanctions": 2.0
+  "embargo": 2.2
+  "attack": 2.2
+  "escalation": 2.0
+  "war": 1.8
+  "hormuz": 2.6
+  "shortage": 2.3
+  "cold snap": 1.5
+  "hurricane": 1.8
+  "demand surge": 2.0
+  "stimulus": 1.5
+  "inventory build": -2.4
+  "larger than expected build": -2.6
+  "surprise build": -2.4
+  "build": -1.8
+  "glut": -2.5
+  "oversupply": -2.4
+  "output increase": -2.2
+  "production increase": -2.2
+  "quota increase": -2.2
+  "opec+ boost": -2.4
+  "opec raises": -2.4
+  "ceasefire": -2.2
+  "peace deal": -2.0
+  "demand slump": -2.3
+  "weak demand": -2.2
+  "recession": -1.8
+  "spr release": -1.8
+  "spr sale": -1.8
+
+classification:
+  # Source credibility weights (0..1) used in substance vs. noise scoring.
+  source_weights:
+    "eia.gov": 1.0
+    "reuters": 1.0
+    "reutersagency.com": 1.0
+    "oilprice.com": 0.7
+    "investing.com": 0.7
+    "newsapi": 0.7
+    "reddit": 0.3
+    "stocktwits": 0.2
+    "x": 0.3
+    "unknown": 0.4
+  corroboration_window_minutes: 90
+  confirmation_candles: 4       # candles to check price/volume confirmation
+  substance_threshold: 0.5      # >= => "substantial"
+  manipulation_threshold: 0.55  # >= => flag potential manipulation/noise
+
+historical:
+  horizons_hours: [1, 2, 4, 24]
+  min_sample_for_stats: 5       # below this, historical confidence is "low"
+
+notifications:
+  channel: "console"            # telegram | console
+  send_charts: true
+  min_notify_score: 2.5         # only push events at/above this relevance
+  dedup_minutes: 30             # suppress near-duplicate notifications
+  quiet_hours: []               # e.g. ["01:00-06:00"] in UTC; empty = always
+  heartbeat_hours: 12           # periodic "still alive" ping (0 = disabled)
+  always_notify_substantial: true  # substantial events bypass min_notify_score

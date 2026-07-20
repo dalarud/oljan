@@ -1,0 +1,23 @@
+# Core
+pyyaml>=6.0
+python-dotenv>=1.0
+requests>=2.31
+numpy>=1.24
+pandas>=2.0
+
+# Market data
+yfinance>=0.2.40
+
+# News / feeds (optional: RSS collector falls back to a stdlib parser if
+# feedparser is unavailable, but feedparser gives better coverage).
+feedparser>=6.0
+
+# Sentiment (lightweight, interpretable)
+vaderSentiment>=3.3.2
+
+# Charting
+matplotlib>=3.7
+mplfinance>=0.12.10b0
+
+# Optional social source (Reddit). Imported lazily; only needed if reddit_enabled.
+praw>=7.7

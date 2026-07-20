@@ -1,0 +1,30 @@
+# systemd unit for running Oljan 24/7 with auto-restart.
+# Install:
+#   sudo cp deploy/oljan.service /etc/systemd/system/oljan.service
+#   (edit paths/user below)
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now oljan
+#   journalctl -u oljan -f     # follow logs
+
+[Unit]
+Description=Oljan crude oil watch & analysis engine
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=oljan
+WorkingDirectory=/opt/oljan
+# Use the venv's python so dependencies resolve.
+ExecStart=/opt/oljan/.venv/bin/python -m oiltrader --config /opt/oljan/config.yaml
+Restart=always
+RestartSec=10
+# Give the process a clean shutdown window (SIGTERM is handled gracefully).
+TimeoutStopSec=30
+# Basic hardening
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
