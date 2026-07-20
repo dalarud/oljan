@@ -66,8 +66,13 @@ position:
   entry_price: null          # optional; enables PnL/liquidation-distance notes
 
 news:
-  poll_seconds: 60             # how often to poll all sources (fast intraday)
-  collector_timeout_seconds: 25  # per-cycle budget; slow sources are skipped
+  # Streaming mode: each source polls on its own thread and items are alerted
+  # as soon as they arrive (after a short corroboration window) — lowest latency.
+  stream_enabled: true
+  stream_gather_seconds: 25      # wait this long for corroborating sources
+  stream_priority_gather_seconds: 8  # high-credibility sources fire faster
+  poll_seconds: 60             # per-source poll cadence (also batch-mode cycle)
+  collector_timeout_seconds: 25  # batch-mode only: per-cycle budget
   max_age_minutes: 240         # ignore news older than this (intraday focus)
   freshness_halflife_minutes: 60  # freshness score halves every hour
   cluster_similarity: 0.4      # story-clustering threshold (token Jaccard)
@@ -97,7 +102,8 @@ social:
   # --- X / Twitter: intelligence-grade, demonstrably-early sources ---
   # Read via Nitter RSS (keyless). If you have an official X API v2 bearer
   # token, set X_BEARER_TOKEN in .env and it is preferred automatically.
-  x_enabled: true            # polled together with the news task
+  x_enabled: true            # own polling thread in streaming mode
+  x_poll_seconds: 90
   x_nitter_instances:
     - "https://nitter.net"
     - "https://nitter.tiekoetter.com"

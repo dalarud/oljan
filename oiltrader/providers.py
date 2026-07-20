@@ -218,6 +218,22 @@ class TwelveDataProvider:
         if not td or not iv or not self.api_key:
             return pd.DataFrame(columns=_EMPTY)
         n = min(int(parse_lookback(lookback) / self._IV_SECS[iv]) + 5, 5000)
+        df = self._raw_fetch(td, iv, n)
+        if df.empty:
+            return df
+        self.last_source = self.name
+        # Scale intraday ETF -> benchmark level using a SMOOTHED daily ratio
+        # (median of benchmark_close/etf_close over recent days), which is far
+        # more robust than dividing by a single noisy intraday tick.
+        if self.scale and self.anchor and interval != "1d":
+            f = self._scale_factor(symbol)
+            if f:
+                for c in ("open", "high", "low", "close"):
+                    df[c] = df[c] * f
+                self.last_source = f"twelvedata-scaled({td}→benchmark)"
+        return df
+
+    def _raw_fetch(self, td: str, iv: str, n: int) -> pd.DataFrame:
         try:
             resp = requests.get(self.URL, params={
                 "symbol": td, "interval": iv, "outputsize": n,
@@ -244,36 +260,42 @@ class TwelveDataProvider:
         if not rows:
             return pd.DataFrame(columns=_EMPTY)
         rows.sort(key=lambda x: x[0])
-        df = pd.DataFrame(
+        return pd.DataFrame(
             {"open": [r[1] for r in rows], "high": [r[2] for r in rows],
              "low": [r[3] for r in rows], "close": [r[4] for r in rows],
              "volume": [r[5] for r in rows]},
             index=pd.DatetimeIndex([r[0] for r in rows]))
-        self.last_source = self.name
-        if self.scale and self.anchor:
-            anchor_close = self._benchmark_close(symbol)
-            last = df["close"].iloc[-1]
-            if anchor_close and last:
-                f = anchor_close / last
-                for c in ("open", "high", "low", "close"):
-                    df[c] = df[c] * f
-                self.last_source = f"twelvedata-scaled({self.symbol_map[symbol]}→benchmark)"
-        return df
 
-    def _benchmark_close(self, symbol: str):
+    def _scale_factor(self, symbol: str):
+        """Smoothed ETF->benchmark factor = median(benchmark_close/etf_close)
+        over recent aligned trading days. Cached per day."""
         import datetime as _dt
+        import statistics
         key = (symbol, _dt.date.today().isoformat())
         if key in self._anchor_cache:
             return self._anchor_cache[key]
-        close = None
+        factor = None
         try:
-            adf = self.anchor.fetch(symbol, "1d", "10d")
-            if adf is not None and not adf.empty:
-                close = float(adf["close"].iloc[-1])
+            td = self.symbol_map[symbol]
+            etf_daily = self._raw_fetch(td, "1day", 30)
+            bench_daily = self.anchor.fetch(symbol, "1d", "45d")
+            if not etf_daily.empty and not bench_daily.empty:
+                etf_by_date = {ts.date(): c for ts, c in
+                               zip(etf_daily.index, etf_daily["close"])}
+                ratios = []
+                for ts, c in zip(bench_daily.index, bench_daily["close"]):
+                    e = etf_by_date.get(ts.date())
+                    if e and e > 0 and c and c > 0:
+                        ratios.append(c / e)
+                ratios = ratios[-7:]
+                if ratios:
+                    factor = statistics.median(ratios)
+                    if not (0.1 < factor < 20):   # sanity guard
+                        factor = None
         except Exception as e:
-            log.warning("benchmark anchor fetch failed: %s", e)
-        self._anchor_cache[key] = close
-        return close
+            log.warning("scale-factor computation failed: %s", e)
+        self._anchor_cache[key] = factor
+        return factor
 
 
 class ChainProvider:

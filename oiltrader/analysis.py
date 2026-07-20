@@ -126,19 +126,23 @@ class Analyzer:
         n_tf = len(mtf_trends) or 0
         mtf_frac = (aligned / n_tf) if n_tf else 0.5
         src_w = float(event.factors.get("source_weight", 0.4))
+        size = float(event.factors.get("size", 0.0))
         corr_norm = min(max(event.n_sources - 1, 0) / 2.0, 1.0)
         conv = 100 * (
-            0.30 * event.substance
-            + 0.20 * corr_norm
-            + 0.15 * event.freshness
+            0.28 * event.substance
+            + 0.18 * corr_norm
+            + 0.14 * event.freshness
             + 0.10 * src_w
             + 0.10 * hist_edge
-            + 0.15 * mtf_frac
+            + 0.12 * mtf_frac
+            + 0.08 * size          # bigger cited magnitude => more impact
         )
         if event.manipulation_flag:
             conv *= 0.6
         if event.direction == "neutral":
             conv *= 0.5
+        if event.factors.get("conflict"):
+            conv *= 0.8            # sources disagree on direction
         return int(round(max(0.0, min(conv, 100.0))))
 
     # ------------------------------------------------------------- components

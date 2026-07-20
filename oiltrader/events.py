@@ -103,6 +103,25 @@ class EventProcessor:
                 best, best_hits = cat, hits
         return best
 
+    _SIZE_RES = [
+        (re.compile(r"(\d+(?:\.\d+)?)\s*m(?:illion)?\s*(?:barrels|bbl)", re.I), 5.0),
+        (re.compile(r"(\d+(?:\.\d+)?)\s*mb/?d", re.I), 2.0),
+        (re.compile(r"(\d+(?:\.\d+)?)\s*(?:kb/?d|thousand\s*(?:barrels|bpd))", re.I), 2000.0),
+        (re.compile(r"(\d+(?:\.\d+)?)\s*%", re.I), 5.0),
+        (re.compile(r"\$\s*(\d+(?:\.\d+)?)", re.I), 100.0),
+    ]
+
+    def _extract_size(self, text: str) -> float:
+        """0..1 impact score from any hard magnitude cited in the text."""
+        best = 0.0
+        for rx, denom in self._SIZE_RES:
+            for m in rx.finditer(text or ""):
+                try:
+                    best = max(best, min(float(m.group(1)) / denom, 1.0))
+                except ValueError:
+                    continue
+        return best
+
     def source_weight(self, source: str) -> float:
         # Most-specific (longest) matching key wins, so "x/@deitaone" is scored
         # by its own weight rather than a generic "x/" fallback.
@@ -138,10 +157,33 @@ class EventProcessor:
 
         sent = self.sentiment.analyze(rep.text)
         category = self.categorise(rep)
-        direction = sent.bias
-        magnitude = sent.magnitude
+
+        # -- aggregate NET direction across every item in the story, weighted
+        #    by source credibility (robust to one odd headline; detects when
+        #    sources genuinely conflict).
+        agg, pos, neg = 0.0, 0, 0
+        for it in story.items:
+            s = self.sentiment.analyze(it.text)
+            agg += s.directional_score * (0.5 + 0.5 * self.source_weight(it.source))
+            if s.directional_score > 0.3:
+                pos += 1
+            elif s.directional_score < -0.3:
+                neg += 1
+        if agg > 0.3:
+            direction = "bullish"
+        elif agg < -0.3:
+            direction = "bearish"
+        else:
+            direction = "neutral"
+        conflict = pos > 0 and neg > 0
+        magnitude = max(sent.magnitude, min(abs(agg) / max(len(story.items), 1), 3.0))
 
         factors: dict[str, Any] = {}
+        factors["conflict"] = conflict
+        # -- event size from hard numbers (bigger => more market impact)
+        size = max((self._extract_size(it.text) for it in story.items),
+                   default=0.0)
+        factors["size"] = round(size, 2)
 
         # -- source credibility: use the MOST credible corroborating source
         best_src_w = max(self.source_weight(s) for s in story.sources)

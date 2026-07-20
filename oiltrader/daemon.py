@@ -76,44 +76,60 @@ class Daemon:
         self.collector_timeout = cfg.get("news.collector_timeout_seconds", 25)
 
         base = cfg.get("general.loop_interval_seconds", 30)
+        self.stream_enabled = cfg.get("news.stream_enabled", True)
+        self._engine = None
+        # Periodic (non-news) tasks, looked up by name.
         self.tasks = [
+            Task("daily", self._task_daily, 86400),
             Task("market", self._task_market,
                  cfg.get("market_data.refresh_seconds", 120)),
-            Task("news", self._task_news,
-                 cfg.get("news.poll_seconds", 180)),
             Task("mature", self._task_mature, 3600),
-            Task("daily", self._task_daily, 86400),
         ]
+        if not self.stream_enabled:
+            self.tasks.append(Task("news", self._task_news,
+                                   cfg.get("news.poll_seconds", 60)))
         hb = cfg.get("notifications.heartbeat_hours", 12)
         if hb and hb > 0:
-            self.tasks.append(Task("heartbeat", self._task_heartbeat,
-                                   hb * 3600))
+            self.tasks.append(Task("heartbeat", self._task_heartbeat, hb * 3600))
         self.pulse_hours = cfg.get("notifications.pulse_hours", 3)
         if self.pulse_hours and self.pulse_hours > 0:
             self.tasks.append(Task("pulse", self._task_pulse,
                                    self.pulse_hours * 3600))
+        self._tasks_by_name = {t.name: t for t in self.tasks}
         self._base_interval = base
+
+    def _task(self, name: str) -> "Task":
+        return self._tasks_by_name[name]
 
     # ------------------------------------------------------------------- loop
     def run(self) -> None:
         self._install_signals()
-        log.info("Oljan daemon starting. Symbols=%s primary=%s collectors=%s",
-                 self.symbols, self.primary, [c.name for c in self.collectors])
-        # Immediate liveness ping so the user knows the daemon is up, BEFORE
-        # the (potentially slow) first data fetch.
+        log.info("Oljan daemon starting. Symbols=%s primary=%s collectors=%s "
+                 "stream=%s", self.symbols, self.primary,
+                 [c.name for c in self.collectors], self.stream_enabled)
         tfs = ", ".join(self.intervals)
         try:
             self.notifier.send_text(
                 f"🟢 Oljan startad och bevakar {', '.join(self.symbols)}.\n"
                 f"Tidsramar: {tfs} · analys-TF: {self.analysis_tf} · "
-                f"källor: {len(self.collectors)}.\n"
+                f"källor: {len(self.collectors)}"
+                + (" · strömmande" if self.stream_enabled else "") + ".\n"
                 f"_Du får en notis när något relevant händer._")
         except Exception as e:
             log.warning("startup ping failed: %s", e)
 
         # Warm up so charts/analysis have data available.
-        self._safe(self._task_daily, self.tasks[3])
-        self._safe(self._task_market, self.tasks[0])
+        self._safe(self._task_daily, self._task("daily"))
+        self._safe(self._task_market, self._task("market"))
+
+        if self.stream_enabled:
+            from .stream import NewsStreamEngine
+            self._engine = NewsStreamEngine(
+                self.cfg, self.collectors, self._handle_story,
+                self.storage.seen, self.storage.mark_seen,
+                self.events.source_weight, self.primary)
+            self._safe(self._engine.prime, None)
+            self._engine.start()
 
         now = time.time()
         for t in self.tasks:
@@ -127,14 +143,32 @@ class Daemon:
                 if task.due(now):
                     self._safe(task.fn, task)
             time.sleep(self._base_interval)
+
+        if self._engine:
+            self._engine.stop_all()
         log.info("Oljan daemon stopped.")
 
     def run_once(self) -> None:
-        """One full pass of every task – useful for testing / cron mode."""
+        """One synchronous batch pass – for testing / cron mode."""
         log.info("Running a single pass (run_once).")
-        for task in [self.tasks[3], self.tasks[0], self.tasks[1],
-                     self.tasks[2]]:
-            self._safe(task.fn, task, reschedule=False)
+        for name in ("daily", "market"):
+            self._safe(self._task(name).fn, self._task(name), reschedule=False)
+        self._safe(self._task_news, None, reschedule=False)
+        self._safe(self._task_mature, None, reschedule=False)
+
+    def _handle_story(self, story) -> None:
+        """Streaming callback: finalise one clustered story into an alert.
+
+        The engine primes the backlog silently, so any story reaching here is
+        genuinely new and worth evaluating.
+        """
+        chart = self._primary_chart(self.primary)
+        mtf = self._mtf_trends(self.primary)
+        event = self.events.process_story(story, chart)
+        if event is None:
+            return
+        self.events.persist(event)
+        self._handle_event(event, chart, mtf)
 
     # ------------------------------------------------------------------ tasks
     def _task_market(self) -> None:
