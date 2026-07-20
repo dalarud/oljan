@@ -96,6 +96,19 @@ class Daemon:
         self._safe(self._task_daily, self.tasks[3])
         self._safe(self._task_market, self.tasks[0])
 
+        # Immediate liveness ping so the user knows the daemon is up.
+        price = self.market.last_price(self.primary)
+        px = f"{price:.2f}" if price else "n/a"
+        tfs = ", ".join(self.intervals)
+        try:
+            self.notifier.send_text(
+                f"🟢 Oljan startad och bevakar {self.primary} ({px}).\n"
+                f"Tidsramar: {tfs} · källor: {len(self.collectors)} · "
+                f"analys-TF: {self.analysis_tf}.\n"
+                f"_Du får en notis när något relevant händer._")
+        except Exception as e:
+            log.warning("startup ping failed: %s", e)
+
         now = time.time()
         for t in self.tasks:
             t.schedule_next(now)
@@ -149,6 +162,10 @@ class Daemon:
     def _task_news(self) -> None:
         chart = self._primary_chart(self.primary)
         mtf = self._mtf_trends(self.primary)
+        # On the very first run against a fresh DB the whole backlog looks
+        # "new"; seed it silently so we don't flood with dozens of alerts at
+        # once. Only genuinely new items after startup are pushed.
+        primed = self.storage.get_meta("news_primed") == "1"
         new_items = 0
         processed = 0
         for collector in self.collectors:
@@ -169,8 +186,13 @@ class Daemon:
                     continue
                 self.events.persist(event)
                 processed += 1
-                self._handle_event(event, chart, mtf)
-        if new_items:
+                if primed:
+                    self._handle_event(event, chart, mtf)
+        if not primed:
+            self.storage.set_meta("news_primed", "1")
+            log.info("news primed: seeded %d backlog items silently (%d "
+                     "relevant); future items will push.", new_items, processed)
+        elif new_items:
             log.info("news pass: %d new items, %d relevant events",
                      new_items, processed)
 
