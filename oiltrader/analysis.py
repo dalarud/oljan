@@ -315,6 +315,12 @@ class Analyzer:
             if arrows:
                 line += f"\nMTF: {arrows}"
             parts.append(line)
+        else:
+            # Never invent numbers: if there is no live price feed, say so
+            # plainly and omit all levels/targets/stops.
+            parts.append("📊 ⚠️ INGEN LIVE PRISDATA – inga nivåer/stop visas "
+                         "(kontrollera dataflödet). Bedömningen nedan bygger "
+                         "endast på nyheten.")
 
         # 3) Verdict (substance vs manipulation) + confidence, compact.
         parts.append(
