@@ -203,12 +203,18 @@ class TwelveDataProvider:
                 "1h": 3600, "1day": 86400}
 
     def __init__(self, api_key: str, symbol_map: dict | None = None,
-                 scale_to_benchmark: bool = False, anchor=None, timeout: int = 20):
+                 scale_to_benchmark: bool = False, anchor=None, timeout: int = 20,
+                 scale_override: dict | None = None):
         self.api_key = api_key
         self.symbol_map = symbol_map or {"BZ=F": "BNO", "CL=F": "USO"}
         self.scale = scale_to_benchmark
         self.anchor = anchor
         self.timeout = timeout
+        # Manual per-symbol ETF->benchmark factor. When set it OVERRIDES the
+        # Alpha Vantage anchor — used when the user calibrates to a real feed
+        # (e.g. their TradingView UKOIL), which beats a stale free daily close.
+        self.scale_override = {k: float(v) for k, v in
+                               (scale_override or {}).items()}
         self._anchor_cache: dict = {}
         self.last_source = self.name
 
@@ -284,6 +290,9 @@ class TwelveDataProvider:
         """
         import datetime as _dt
         import statistics
+        # A calibrated manual factor wins outright (real user anchor > stale feed).
+        if symbol in self.scale_override:
+            return self.scale_override[symbol]
         key = (symbol, _dt.date.today().isoformat())
         if key in self._anchor_cache:
             return self._anchor_cache[key]
@@ -372,7 +381,8 @@ def _build_one(name: str, cfg):
             cfg.secret("TWELVEDATA_API_KEY"),
             symbol_map=cfg.get("market_data.twelvedata_symbols",
                                {"BZ=F": "BNO", "CL=F": "USO"}),
-            scale_to_benchmark=scale, anchor=anchor)
+            scale_to_benchmark=scale, anchor=anchor,
+            scale_override=cfg.get("market_data.scale_override", {}) or {})
     if name == "yahoo":
         return YahooChartProvider(
             retries=int(cfg.get("market_data.max_retries", 4)),

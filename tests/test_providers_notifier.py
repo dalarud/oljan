@@ -115,3 +115,17 @@ def test_chain_provider_returns_first_nonempty():
     df = chain.fetch("BZ=F", "1d", "1y")
     assert not df.empty and df["close"].iloc[-1] == 81.6
     assert chain.name == "empty+good"
+
+
+def test_twelvedata_scale_override_wins():
+    """A manual scale_override must beat the Alpha Vantage anchor."""
+    from oiltrader.providers import TwelveDataProvider
+
+    class _Anchor:
+        def fetch(self, *a, **k):
+            raise AssertionError("anchor must not be consulted when overridden")
+
+    p = TwelveDataProvider("key", symbol_map={"BZ=F": "BNO"},
+                           scale_to_benchmark=True, anchor=_Anchor(),
+                           scale_override={"BZ=F": 1.7930})
+    assert p._scale_factor("BZ=F") == 1.7930
