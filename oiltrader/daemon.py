@@ -70,6 +70,12 @@ class Daemon:
         self.setups = SetupMonitor(cfg)
         self.setup_cooldown_min = cfg.get("setups.cooldown_minutes", 30)
         self.fast_skip_min = cfg.get("market_data.fast_skip_minutes", 20)
+        # Dedicated Yahoo provider for the fast poll: real ~24h Brent futures,
+        # ONE polite request per cycle (keeps the primary series on a single
+        # real basis and, unlike the ETF, has data during the EU morning).
+        from .providers import YahooChartProvider
+        self._fast_provider = YahooChartProvider(
+            cooldown=cfg.get("market_data.yahoo_cooldown_seconds", 45))
 
         self.symbols = [i["symbol"] for i in cfg.instruments]
         self.primary = cfg.primary_instrument["symbol"]
@@ -247,20 +253,24 @@ class Daemon:
                 log.warning("No price data for %s (intraday or daily)", sym)
 
     def _task_market_fast(self) -> None:
-        """High-cadence poll of ONLY the primary analysis timeframe, to drive
-        prompt setup detection. Conserves API calls by skipping when the feed
-        is resting (stale candle) or during quiet hours."""
+        """High-cadence Yahoo-only poll of the primary analysis timeframe for
+        real ~24h Brent (incl. the EU morning) and prompt setup detection.
+
+        Yahoo-only on purpose: it keeps the primary series on ONE real basis
+        (no ETF-scaled candles mixed in) and avoids burning the Twelve Data
+        quota while Yahoo is briefly cooling down. If Yahoo is unavailable this
+        cycle we simply keep the last real candle and retry next minute."""
         if self.notifier.in_quiet_hours():
             return
         sym, iv = self.primary, self.analysis_tf
-        cur = self._chart_cache.get(sym, {}).get(iv)
-        if cur is not None and cur.last_candle_age_min > self.fast_skip_min:
-            return  # feed resting (e.g. ETF closed); full task re-checks at its cadence
-        df = self.market.refresh_one(sym, iv)
+        lookback = dict(self.market.timeframes).get(iv, "5d")
+        df = self._fast_provider.fetch(sym, iv, lookback)
         if df is None or df.empty or len(df) < 30:
-            return
+            return  # Yahoo cooling/unavailable; keep last real candle
+        self.storage.upsert_candles(sym, iv, df)
+        self.storage.set_meta(f"src:{sym}:{iv}", "yahoo")
         ctx = compute_indicators(df, sym, self.cfg, timeframe=iv)
-        ctx.source = self.market.source_of(sym, iv)
+        ctx.source = "yahoo"
         self._chart_cache.setdefault(sym, {})[iv] = ctx
         self._check_setups()
 
@@ -477,11 +487,13 @@ class Daemon:
         intr = self.storage.get_candles(sym, chart.timeframe or self.analysis_tf)
         if intr.empty:
             return None
-        # When intraday is a SCALED ETF estimate, the stored real-benchmark
-        # daily (Alpha Vantage) can be on a different/stale basis — mixing them
-        # yields incoherent PD levels. Derive prior-day H/L/C from the scaled
-        # intraday itself so every level shares one current basis.
-        if "scaled" in (chart.source or ""):
+        # Keep every level on ONE current basis: derive prior-day H/L/C from
+        # the intraday series itself whenever intraday is the trusted source
+        # (scaled ETF estimate OR real Yahoo intraday). The stored daily can be
+        # stale/different-basis (free Alpha Vantage), which would make PD levels
+        # incoherent with the price.
+        src = chart.source or ""
+        if "scaled" in src or "yahoo" in src:
             daily = self._resample_daily(intr)
         else:
             daily = self.storage.get_candles(sym, "1d")

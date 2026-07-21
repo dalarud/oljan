@@ -56,14 +56,24 @@ class YahooChartProvider:
     HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]
     PATH = "/v8/finance/chart/{symbol}"
 
-    def __init__(self, retries: int = 4, timeout: int = 20):
-        self.retries = retries
+    def __init__(self, retries: int = 4, timeout: int = 20,
+                 cooldown: int = 45):
         self.timeout = timeout
+        # Yahoo's chart API tolerates infrequent single requests but bans
+        # bursts (the old retry-across-hosts loop reliably tripped a 429). So:
+        # ONE request per fetch, alternate hosts across calls, and after a 429
+        # stand down for `cooldown` seconds (subsequent fetches return empty
+        # without hitting Yahoo). The 60s poll then retries politely next cycle.
+        self.cooldown = cooldown
+        self._host_i = 0
+        self._cooldown_until = 0.0
         self._session = requests.Session()
         self._session.headers.update({"User-Agent": _UA,
                                       "Accept": "application/json"})
 
     def fetch(self, symbol: str, interval: str, lookback: str) -> pd.DataFrame:
+        if time.monotonic() < self._cooldown_until:
+            return pd.DataFrame(columns=_EMPTY)  # standing down after a 429
         yint = "60m" if interval == "1h" else interval
         secs = min(parse_lookback(lookback),
                    _MAX_LOOKBACK_SECONDS.get(yint, 60 * 86400))
@@ -75,27 +85,22 @@ class YahooChartProvider:
             "includePrePost": "false",
             "events": "div,splits",
         }
-
-        last_err: Exception | None = None
-        for attempt in range(self.retries):
-            # Rotate hosts across attempts (helps with transient per-host 429s).
-            host = self.HOSTS[attempt % len(self.HOSTS)]
-            url = f"https://{host}" + self.PATH.format(symbol=symbol)
-            try:
-                resp = self._session.get(url, params=params, timeout=self.timeout)
-                if resp.status_code == 429:
-                    raise RuntimeError("Yahoo rate-limited (429)")
-                resp.raise_for_status()
-                return self._parse(resp.json())
-            except Exception as e:
-                last_err = e
-                wait = 2 ** attempt
-                log.warning("Yahoo fetch %s %s via %s failed (attempt %d/%d): "
-                            "%s; retry in %ds", symbol, yint, host, attempt + 1,
-                            self.retries, str(e)[:120], wait)
-                time.sleep(wait)
-        log.error("Yahoo fetch giving up for %s %s: %s", symbol, yint, last_err)
-        return pd.DataFrame(columns=_EMPTY)
+        host = self.HOSTS[self._host_i % len(self.HOSTS)]
+        self._host_i += 1
+        url = f"https://{host}" + self.PATH.format(symbol=symbol)
+        try:
+            resp = self._session.get(url, params=params, timeout=self.timeout)
+            if resp.status_code == 429:
+                self._cooldown_until = time.monotonic() + self.cooldown
+                log.warning("Yahoo 429 for %s %s; standing down %ds",
+                            symbol, yint, self.cooldown)
+                return pd.DataFrame(columns=_EMPTY)
+            resp.raise_for_status()
+            return self._parse(resp.json())
+        except Exception as e:
+            log.warning("Yahoo fetch %s %s via %s failed: %s",
+                        symbol, yint, host, str(e)[:100])
+            return pd.DataFrame(columns=_EMPTY)
 
     @staticmethod
     def _parse(payload: dict) -> pd.DataFrame:

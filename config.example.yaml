@@ -58,7 +58,10 @@ market_data:
   # during quiet hours, so on a free tier calls concentrate in the live session.
   fast_refresh_seconds: 60
   fast_skip_minutes: 20
-  request_spacing: 0.8       # seconds between provider calls (rate-limit safety)
+  # Yahoo (real ~24h Brent) tolerates infrequent single requests but 429-bans
+  # bursts on a shared IP; after a 429 the provider stands down this long.
+  yahoo_cooldown_seconds: 45
+  request_spacing: 3.0       # seconds between provider calls (rate-limit safety)
 
 indicators:
   ema_fast: 12
