@@ -273,8 +273,15 @@ class TwelveDataProvider:
             index=pd.DatetimeIndex([r[0] for r in rows]))
 
     def _scale_factor(self, symbol: str):
-        """Smoothed ETF->benchmark factor = median(benchmark_close/etf_close)
-        over recent aligned trading days. Cached per day."""
+        """ETF->benchmark factor anchored to the LATEST aligned daily close.
+
+        The daily close is authoritative (not a noisy tick), so anchoring to the
+        most recent aligned benchmark/ETF close ratio keeps the scaled intraday
+        level correct in a trending week. A single bad print is guarded against
+        by rejecting a >5% deviation from the recent 3-day median in its favour.
+        (A plain 7-day median was smooth but LAGGED the level — e.g. anchoring
+        intraday to ~86 while Brent had already fallen to ~82.) Cached per day.
+        """
         import datetime as _dt
         import statistics
         key = (symbol, _dt.date.today().isoformat())
@@ -295,7 +302,11 @@ class TwelveDataProvider:
                         ratios.append(c / e)
                 ratios = ratios[-7:]
                 if ratios:
-                    factor = statistics.median(ratios)
+                    latest = ratios[-1]
+                    ref = statistics.median(ratios[-3:])
+                    # track the latest close, but reject an outlier print
+                    factor = ref if (ref and abs(latest / ref - 1) > 0.05) \
+                        else latest
                     if not (0.1 < factor < 20):   # sanity guard
                         factor = None
         except Exception as e:

@@ -13,6 +13,11 @@ from typing import Optional
 
 import requests
 
+try:
+    from zoneinfo import ZoneInfo
+except Exception:  # pragma: no cover
+    ZoneInfo = None
+
 log = logging.getLogger("oljan.notifier")
 
 
@@ -24,6 +29,8 @@ class Notifier:
         self.send_charts = cfg.get("notifications.send_charts", True)
         self.dedup_minutes = cfg.get("notifications.dedup_minutes", 30)
         self.quiet_hours = cfg.get("notifications.quiet_hours", []) or []
+        tzname = cfg.get("notifications.timezone", "UTC")
+        self.tz = ZoneInfo(tzname) if (ZoneInfo and tzname) else timezone.utc
 
         # Telegram
         self.token = cfg.secret("TELEGRAM_BOT_TOKEN")
@@ -63,10 +70,21 @@ class Notifier:
         return ok
 
     def heartbeat(self, text: str) -> None:
-        self._send(text, None)
+        self.send_ambient(text)
 
     def send_text(self, text: str) -> bool:
+        """Send unconditionally (used by the morning report and startup ping)."""
         return self._send(text, None)
+
+    def send_ambient(self, text: str) -> bool:
+        """Send a non-urgent/periodic message, suppressed during quiet hours."""
+        if self._in_quiet_hours():
+            log.info("In quiet hours; skipping ambient push.")
+            return False
+        return self._send(text, None)
+
+    def in_quiet_hours(self) -> bool:
+        return self._in_quiet_hours()
 
     # ---------------------------------------------------------------- internal
     def _send(self, text: str, chart_path: Optional[str]) -> bool:
@@ -168,26 +186,29 @@ class Notifier:
     def _in_quiet_hours(self) -> bool:
         if not self.quiet_hours:
             return False
-        now = datetime.now(timezone.utc).time()
-        for window in self.quiet_hours:
-            try:
-                start_s, end_s = window.split("-")
-                start = _parse_hhmm(start_s)
-                end = _parse_hhmm(end_s)
-            except Exception:
-                continue
-            if start <= end:
-                if start <= now <= end:
-                    return True
-            else:  # wraps midnight
-                if now >= start or now <= end:
-                    return True
-        return False
+        return _time_in_windows(datetime.now(self.tz).time(), self.quiet_hours)
 
 
 def _parse_hhmm(s: str) -> time:
     h, m = s.strip().split(":")
     return time(int(h), int(m))
+
+
+def _time_in_windows(now: time, windows) -> bool:
+    """True if `now` falls in any "HH:MM-HH:MM" window (midnight-wrap aware)."""
+    for window in windows:
+        try:
+            start_s, end_s = window.split("-")
+            start, end = _parse_hhmm(start_s), _parse_hhmm(end_s)
+        except Exception:
+            continue
+        if start <= end:
+            if start <= now <= end:
+                return True
+        else:  # wraps midnight
+            if now >= start or now <= end:
+                return True
+    return False
 
 
 def _truncate(text: str, limit: int) -> str:

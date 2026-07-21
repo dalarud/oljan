@@ -99,10 +99,10 @@ class Watchdog:
 
         if now_degraded and not self._degraded:
             self._degraded = True
-            self.notifier.send_text(self._format_alert(problems))
+            self.notifier.send_ambient(self._format_alert(problems))
         elif not now_degraded and self._degraded:
             self._degraded = False
-            self.notifier.send_text(
+            self.notifier.send_ambient(
                 "✅ *Oljan återställd* – alla källor och prisdata svarar igen.")
         # store a compact status line for heartbeats / debugging
         self.storage.set_meta("watchdog_status",

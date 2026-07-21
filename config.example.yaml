@@ -365,7 +365,16 @@ notifications:
   min_notify_score: 2.5         # (batch relevance floor; conviction gate below dominates)
   min_conviction: 40            # only push alerts at/above this conviction (0-100)
   dedup_minutes: 30             # suppress near-duplicate notifications
-  quiet_hours: []               # e.g. ["01:00-06:00"] in UTC; empty = always
+  # Quiet hours are evaluated in this timezone (DST-aware). Windows may wrap
+  # midnight. During quiet hours NO pushes go out (events, pulse, heartbeat,
+  # watchdog) — events are still collected & stored so the morning report can
+  # summarise them. The morning report itself is always delivered.
+  timezone: "Europe/Stockholm"
+  quiet_hours: ["22:00-06:00"]  # svensk natt: inga notiser 22–06
+  morning_report:
+    enabled: true
+    time: "06:00"               # local (timezone above); fires once/day at/after
+    night_hours: 9              # how far back the night recap looks
   heartbeat_hours: 12           # periodic "still alive" ping (0 = disabled)
   pulse_hours: 3                # periodic market-pulse digest (0 = disabled)
   always_notify_substantial: true  # substantial events bypass min_notify_score

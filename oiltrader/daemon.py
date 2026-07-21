@@ -109,6 +109,11 @@ class Daemon:
         if self.pulse_hours and self.pulse_hours > 0:
             self.tasks.append(Task("pulse", self._task_pulse,
                                    self.pulse_hours * 3600))
+        # Morning report: a single briefing at a fixed local time instead of
+        # overnight pings. Checked on a short cadence; fires once per day.
+        self.morning_enabled = cfg.get("notifications.morning_report.enabled", True)
+        if self.morning_enabled:
+            self.tasks.append(Task("morning", self._task_morning, 300))
         if cfg.get("watchdog.enabled", True):
             self.tasks.append(Task("watchdog", self._task_watchdog,
                                    cfg.get("watchdog.check_seconds", 300)))
@@ -315,6 +320,10 @@ class Daemon:
         self.historical.mature_events()
 
     def _task_watchdog(self) -> None:
+        # Overnight the intraday ETF proxy is expected to be stale; don't churn
+        # the degraded/recovered state (and stay silent) during quiet hours.
+        if self.notifier.in_quiet_hours():
+            return
         self.watchdog.evaluate()
 
     def _task_crossasset(self) -> None:
@@ -324,7 +333,7 @@ class Daemon:
         self.evaluator.score_due()
         new_min = self.evaluator.maybe_tune(self.min_conviction)
         if new_min is not None:
-            self.notifier.send_text(
+            self.notifier.send_ambient(
                 f"⚙️ Oljan justerade konviktionströskeln till *{new_min}* "
                 f"utifrån uppmätt marginalträffsäkerhet. "
                 f"_Färre men mer träffsäkra notiser._")
@@ -333,7 +342,41 @@ class Daemon:
         msg = self.evaluator.scorecard(
             self.cfg.get("alert_eval.scorecard_lookback_days", 14))
         if msg:
-            self.notifier.send_text(msg)
+            self.notifier.send_ambient(msg)
+
+    def _task_morning(self) -> None:
+        """Send the morning briefing once per day at/after the configured local
+        time (default 06:00), replacing overnight pings."""
+        from .morning import build_morning_report
+        tz = self.notifier.tz
+        now_local = datetime.now(timezone.utc).astimezone(tz)
+        target = str(self.cfg.get("notifications.morning_report.time", "06:00"))
+        try:
+            th, tm = (int(x) for x in target.split(":"))
+        except Exception:
+            th, tm = 6, 0
+        target_min = th * 60 + tm
+        now_min = now_local.hour * 60 + now_local.minute
+        today = now_local.strftime("%Y-%m-%d")
+        # Fire once, in the window [target, target+3h), if not already sent today.
+        if self.storage.get_meta("morning_report_date") == today:
+            return
+        if not (target_min <= now_min < target_min + 180):
+            return
+        chart = self._primary_chart(self.primary)
+        report = build_morning_report(
+            self.cfg, self.storage,
+            name=self.cfg.primary_instrument.get("name", self.primary),
+            symbol=self.primary, chart=chart, levels=self._key_levels(chart),
+            mtf_trends=self._mtf_trends(self.primary),
+            cross=self.crossasset.snapshot(),
+            night_hours=self.cfg.get("notifications.morning_report.night_hours", 9),
+            tz=tz)
+        # The morning report is the point of the quiet window — send it even
+        # though we're technically still at the edge of quiet hours.
+        self.notifier.send_text(report)
+        self.storage.set_meta("morning_report_date", today)
+        log.info("morning report sent for %s", today)
 
     def _task_pulse(self) -> None:
         from .pulse import build_pulse
@@ -343,7 +386,7 @@ class Daemon:
                           self.market.last_price(self.primary),
                           chart.trend if chart else None, name)
         if msg:
-            self.notifier.send_text(msg)
+            self.notifier.send_ambient(msg)
 
     def _task_heartbeat(self) -> None:
         price = self.market.last_price(self.primary)
@@ -364,14 +407,32 @@ class Daemon:
         from .levels import compute_levels
         sym = chart.symbol
         intr = self.storage.get_candles(sym, chart.timeframe or self.analysis_tf)
-        daily = self.storage.get_candles(sym, "1d")
         if intr.empty:
             return None
+        # When intraday is a SCALED ETF estimate, the stored real-benchmark
+        # daily (Alpha Vantage) can be on a different/stale basis — mixing them
+        # yields incoherent PD levels. Derive prior-day H/L/C from the scaled
+        # intraday itself so every level shares one current basis.
+        if "scaled" in (chart.source or ""):
+            daily = self._resample_daily(intr)
+        else:
+            daily = self.storage.get_candles(sym, "1d")
         try:
-            return compute_levels(intr, daily if not daily.empty else None,
-                                  chart.price, self.cfg)
+            return compute_levels(intr, daily if daily is not None and
+                                  not daily.empty else None, chart.price, self.cfg)
         except Exception as e:
             log.warning("level computation failed: %s", e)
+            return None
+
+    @staticmethod
+    def _resample_daily(intr):
+        """Daily OHLC from an intraday series (keeps one consistent basis)."""
+        try:
+            d = intr.resample("1D").agg(
+                {"open": "first", "high": "max", "low": "min",
+                 "close": "last", "volume": "sum"}).dropna(how="any")
+            return d
+        except Exception:
             return None
 
     def _handle_event(self, event, chart, mtf=None) -> None:
@@ -402,10 +463,13 @@ class Daemon:
             if not df.empty:
                 chart_path = render_chart(df, chart, self.cfg,
                                           tag=event.category)
-        self.notifier.notify_event(analysis, chart_path)
-        # Log the pushed alert so its directional claim can be scored later.
-        ref_price = chart.price if chart is not None else None
-        self.evaluator.record(analysis, ref_price)
+        pushed = self.notifier.notify_event(analysis, chart_path)
+        # Only score alerts that were actually delivered (not deduped or
+        # suppressed during quiet hours), so the track record reflects the
+        # notifications you really received.
+        if pushed:
+            ref_price = chart.price if chart is not None else None
+            self.evaluator.record(analysis, ref_price)
 
     def _safe(self, fn: Callable[[], None], task: Optional[Task],
               reschedule: bool = True) -> None:

@@ -12,6 +12,10 @@ class _Notifier:
         self.sent.append(text)
         return True
 
+    def send_ambient(self, text):
+        self.sent.append(text)
+        return True
+
 
 class _Storage:
     def __init__(self):
