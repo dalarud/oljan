@@ -1,0 +1,329 @@
+general:
+  timezone: UTC
+  loop_interval_seconds: 15
+  data_dir: ./data
+  log_level: INFO
+instruments:
+- name: Brent (UKOIL)
+  symbol: BZ=F
+  primary: true
+- name: WTI
+  symbol: CL=F
+  primary: false
+market_data:
+  provider: yahoo
+  fallback_provider:
+  - twelvedata
+  - alphavantage
+  twelvedata_symbols:
+    BZ=F: BNO
+    CL=F: USO
+  twelvedata_scale_to_benchmark: true
+  # (scale_override calibrated once; on CI Yahoo usually gives real BZ=F directly)
+  # (TradingView UKOIL = 88.43 vs raw BNO 49.32 on 2026-07-21). Overrides the
+  # stale free daily anchor so price + levels sit on the real UKOIL level.
+  # Recalibrate if the displayed price drifts from your screen.
+  scale_override:
+    BZ=F: 1.792985
+  timeframes:
+  - interval: 5m
+    lookback: 10d
+  - interval: 1h
+    lookback: 60d
+  analysis_timeframe: 5m
+  daily_lookback: 5y
+  refresh_seconds: 300
+  fast_refresh_seconds: 60
+  fast_skip_minutes: 20
+  yahoo_cooldown_seconds: 300
+  request_spacing: 3.0
+  max_retries: 2
+indicators:
+  ema_fast: 12
+  ema_slow: 26
+  rsi_period: 14
+  atr_period: 14
+  bb_period: 20
+  bb_std: 2.0
+  sr_lookback: 300
+  sr_pivot_width: 3
+  sr_cluster_pct: 0.5
+  volume_avg_period: 20
+position:
+  leverage: 10
+  side: long
+  entry_price: null
+  broker_offset: 0.0
+trader_profile:
+  style: mean_reversion       # mean_reversion | momentum | breakout
+  indicator: rsi
+  rsi_oversold: 30
+  rsi_overbought: 70
+  horizon: scalp              # scalp | intraday | swing (korta trades)
+  primary_side: both          # long | short | both
+  timeframe: 5m
+setups:
+  enabled: true               # proactive alerts when a trade condition triggers
+  level_proximity_pct: 0.35   # how close to a level counts as "at" it
+  cooldown_minutes: 30        # min gap between same-side setup alerts
+news:
+  stream_enabled: false
+  stream_gather_seconds: 25
+  stream_priority_gather_seconds: 8
+  poll_seconds: 60
+  collector_timeout_seconds: 25
+  max_age_minutes: 240
+  freshness_halflife_minutes: 60
+  cluster_similarity: 0.4
+  gdelt_enabled: true
+  gdelt_query: ''
+  rss_feeds:
+  - https://oilprice.com/rss/main
+  - https://www.eia.gov/rss/todayinenergy.xml
+  - https://www.rigzone.com/news/rss/rigzone_latest.aspx
+  - https://news.google.com/rss/search?q=crude+oil+OPEC+WTI+Brent+when:2d&hl=en-US&gl=US&ceid=US:en
+  newsapi_enabled: false
+  newsapi_query: crude oil OR WTI OR Brent OR OPEC
+eia:
+  enabled: false
+  poll_seconds: 3600
+social:
+  reddit_enabled: false
+  reddit_subreddits:
+  - oil
+  - energy
+  - commodities
+  reddit_poll_seconds: 300
+  stocktwits_enabled: false
+  stocktwits_symbols:
+  - CL_F
+  - USOIL
+  stocktwits_poll_seconds: 300
+  x_enabled: true
+  x_poll_seconds: 90
+  x_nitter_instances:
+  - https://nitter.net
+  - https://nitter.tiekoetter.com
+  - https://xcancel.com
+  x_accounts:
+  - DeItaone
+  - FirstSquawk
+  - LiveSquawk
+  - financialjuice
+  - ForexLive
+  - JavierBlas
+  - SStapczynski
+  - staunovo
+  - energyintel
+  - TankerTrackers
+  - Vortexa
+  - OPECSecretariat
+  - IEA
+  - EIAgov
+  - sentdefender
+  - Faytuks
+  - WarMonitors
+  - IntelCrab
+  - IranIntl_En
+  - spectatorindex
+relevance:
+  min_score: 2.0
+  keywords:
+    opec: 3.0
+    opec+: 3.5
+    saudi: 2.0
+    russia: 2.0
+    iran: 2.5
+    sanction: 2.5
+    inventory: 2.5
+    stockpile: 2.0
+    drawdown: 2.5
+    draw: 1.5
+    build: 2.0
+    eia: 2.0
+    api: 1.5
+    supply: 1.5
+    demand: 1.5
+    production: 2.0
+    output: 1.8
+    war: 2.5
+    strike: 1.5
+    ceasefire: 2.5
+    hormuz: 3.0
+    pipeline: 2.0
+    refinery: 1.8
+    hurricane: 2.0
+    recession: 2.0
+    fed: 1.5
+    spr: 2.0
+directional_lexicon:
+  production cut: 2.6
+  supply cut: 2.5
+  opec cut: 2.8
+  output cut: 2.5
+  unexpected draw: 2.5
+  larger than expected draw: 2.6
+  surprise draw: 2.4
+  drawdown: 2.0
+  supply disruption: 2.5
+  outage: 2.0
+  sanction: 2.0
+  sanctions: 2.0
+  embargo: 2.2
+  attack: 2.2
+  escalation: 2.0
+  war: 1.8
+  hormuz: 2.6
+  shortage: 2.3
+  cold snap: 1.5
+  hurricane: 1.8
+  demand surge: 2.0
+  stimulus: 1.5
+  inventory build: -2.4
+  larger than expected build: -2.6
+  surprise build: -2.4
+  build: -1.8
+  glut: -2.5
+  oversupply: -2.4
+  output increase: -2.2
+  production increase: -2.2
+  quota increase: -2.2
+  opec+ boost: -2.4
+  opec raises: -2.4
+  ceasefire: -2.2
+  peace deal: -2.0
+  demand slump: -2.3
+  weak demand: -2.2
+  recession: -1.8
+  spr release: -1.8
+  spr sale: -1.8
+  air strike: 2.2
+  airstrike: 2.2
+  missile strike: 2.3
+  military strike: 2.3
+  strikes on: 2.0
+  strikes against: 2.0
+  launched strikes: 2.2
+  missile: 1.8
+  drone attack: 2.0
+  bombing: 2.0
+  retaliation: 1.8
+  military action: 1.8
+  blockade: 2.2
+  seized tanker: 2.3
+  seizes tanker: 2.3
+  halts exports: 2.4
+  export halt: 2.4
+  force majeure: 2.2
+  de-escalation: -2.0
+  truce: -2.0
+  talks resume: -1.6
+  diplomatic breakthrough: -1.8
+classification:
+  source_weights:
+    eia.gov: 1.0
+    reuters: 1.0
+    reutersagency.com: 1.0
+    iea.org: 0.95
+    opec.org: 0.95
+    oilprice.com: 0.7
+    rigzone.com: 0.7
+    investing.com: 0.7
+    newsapi: 0.65
+    opecsecretariat: 0.9
+    iea: 0.85
+    eiagov: 0.85
+    javierblas: 0.75
+    energyintel: 0.75
+    tankertrackers: 0.7
+    vortexa: 0.7
+    sstapczynski: 0.68
+    staunovo: 0.68
+    deitaone: 0.65
+    firstsquawk: 0.6
+    livesquawk: 0.6
+    forexlive: 0.55
+    financialjuice: 0.55
+    iranintl_en: 0.5
+    sentdefender: 0.5
+    faytuks: 0.5
+    warmonitors: 0.45
+    intelcrab: 0.45
+    spectatorindex: 0.45
+    x/: 0.3
+    reddit: 0.3
+    stocktwits: 0.2
+    unknown: 0.4
+  corroboration_window_minutes: 90
+  confirmation_candles: 4
+  substance_threshold: 0.5
+  manipulation_threshold: 0.55
+llm:
+  enabled: false
+  model: claude-haiku-4-5
+  min_relevance: 3.0
+  timeout_seconds: 20
+watchdog:
+  enabled: true
+  check_seconds: 300
+  consecutive_fail_alert: 3
+  source_stale_seconds: 600
+  market_stale_minutes: 15
+  min_degraded_checks: 2
+alert_eval:
+  enabled: true
+  horizon_hours: 1.0
+  deadband_pct: 0.15
+  score_seconds: 900
+  scorecard_hours: 24
+  scorecard_lookback_days: 14
+  auto_tune: false
+  tune_min_sample: 20
+  tune_floor: 30
+  tune_ceiling: 70
+  tune_step: 5
+  precision_floor: 0.45
+cross_asset:
+  enabled: false
+  interval: 15m
+  lookback: 5d
+  window_minutes: 60
+  refresh_seconds: 900
+  move_threshold_pct: 0.2
+  stale_minutes: 90
+  proxies:
+    USD: UUP
+    Aktier: SPY
+    Guld: GLD
+historical:
+  horizons_hours:
+  - 0.25
+  - 0.5
+  - 1
+  - 2
+  - 4
+  min_sample_for_stats: 5
+notifications:
+  channel: telegram
+  verbosity: compact
+  stale_after_minutes: 20
+  send_charts: true
+  min_notify_score: 2.5
+  dedup_minutes: 90
+  topic_cooldown_minutes: 45
+  topic_escalation_delta: 15
+  timezone: Europe/Stockholm
+  quiet_hours:
+  - 22:00-06:00
+  morning_report:
+    enabled: true
+    time: "06:00"
+    night_hours: 9
+  heartbeat_hours: 12
+  pulse_hours: 3
+  always_notify_substantial: true
+  ntfy:
+    server: https://ntfy.sh
+    topic: oljan-9014381093cb55e2
+    priority: high
+  min_conviction: 40

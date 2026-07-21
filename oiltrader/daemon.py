@@ -67,7 +67,7 @@ class Daemon:
         self.evaluator = AlertEvaluator(cfg, self.storage, self.market)
         self.crossasset = CrossAssetMonitor(
             cfg, self.storage, cfg.primary_instrument["symbol"])
-        self.setups = SetupMonitor(cfg)
+        self.setups = SetupMonitor(cfg, storage=self.storage)
         self.setup_cooldown_min = cfg.get("setups.cooldown_minutes", 30)
         self.fast_skip_min = cfg.get("market_data.fast_skip_minutes", 20)
         # Dedicated Yahoo provider for the fast poll: real ~24h Brent futures,
@@ -215,6 +215,45 @@ class Daemon:
             self._safe(self._task(name).fn, self._task(name), reschedule=False)
         self._safe(self._task_news, None, reschedule=False)
         self._safe(self._task_mature, None, reschedule=False)
+
+    def run_cron(self) -> None:
+        """One full pass for a SCHEDULED runner (e.g. GitHub Actions) that fires
+        every N minutes. State (seen items, dedup, last-RSI, morning/pulse
+        timers) lives in the persisted sqlite DB, so across stateless runs this
+        behaves like the continuous daemon: it primes silently on the very first
+        run, then only new events/setups/reports fire. Time-gated tasks
+        (morning, pulse) fire when due."""
+        log.info("Running a scheduled pass (run_cron).")
+        # Daily data only needs refreshing once/day (Alpha Vantage free = 25
+        # calls/day), so gate it to avoid burning the quota every 15 min.
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if self.storage.get_meta("daily_done_date") != today:
+            self._safe(self._task_daily, None, reschedule=False)
+            self.storage.set_meta("daily_done_date", today)
+        self._safe(self._task_market, None, reschedule=False)
+        self._safe(self._task_market_fast, None, reschedule=False)  # fresh 5m + setups
+        self._safe(self._task_news, None, reschedule=False)
+        self._safe(self._task_mature, None, reschedule=False)
+        if self.morning_enabled:
+            self._safe(self._task_morning, None, reschedule=False)
+        self._safe(self._cron_pulse_if_due, None, reschedule=False)
+        if self.cfg.get("watchdog.enabled", True):
+            self._safe(self._task_watchdog, None, reschedule=False)
+
+    def _cron_pulse_if_due(self) -> None:
+        """Fire the market pulse if pulse_hours have elapsed since the last one
+        (meta-gated, since a scheduled run has no long-lived scheduler)."""
+        if not (self.pulse_hours and self.pulse_hours > 0):
+            return
+        last = self.storage.get_meta("last_pulse_ts")
+        now = time.time()
+        try:
+            if last and (now - float(last)) < self.pulse_hours * 3600:
+                return
+        except (TypeError, ValueError):
+            pass
+        self._task_pulse()
+        self.storage.set_meta("last_pulse_ts", str(now))
 
     def _handle_story(self, story) -> None:
         """Streaming callback: finalise one clustered story into an alert.

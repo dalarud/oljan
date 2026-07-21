@@ -42,7 +42,7 @@ class Setup:
 
 
 class SetupMonitor:
-    def __init__(self, cfg):
+    def __init__(self, cfg, storage=None):
         prof = cfg.get("trader_profile", {}) or {}
         self.style = str(prof.get("style", "")).lower()
         self.ob = float(prof.get("rsi_overbought", 70))
@@ -50,7 +50,25 @@ class SetupMonitor:
         self.enabled = bool(cfg.get("setups.enabled", True)) \
             and self.style == "mean_reversion"
         self.near_pct = float(cfg.get("setups.level_proximity_pct", 0.35)) / 100.0
+        # Previous RSI persists in storage when available, so reclaim detection
+        # also works across stateless runs (e.g. a scheduled GitHub Action).
+        self.storage = storage
         self._last_rsi: dict[str, float] = {}
+
+    def _get_last(self, symbol: str) -> Optional[float]:
+        if self.storage is not None:
+            v = self.storage.get_meta(f"setup_rsi:{symbol}")
+            try:
+                return float(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+        return self._last_rsi.get(symbol)
+
+    def _set_last(self, symbol: str, rsi: float) -> None:
+        if self.storage is not None:
+            self.storage.set_meta(f"setup_rsi:{symbol}", f"{rsi:.2f}")
+        else:
+            self._last_rsi[symbol] = rsi
 
     def update_and_detect(self, symbol: str, chart, levels, trend: str,
                           news_bias: float = 0.0) -> Optional[Setup]:
@@ -58,9 +76,9 @@ class SetupMonitor:
         if not self.enabled or chart is None:
             return None
         rsi = getattr(chart, "rsi", None)
-        prev = self._last_rsi.get(symbol)
+        prev = self._get_last(symbol)
         if rsi is not None:
-            self._last_rsi[symbol] = rsi
+            self._set_last(symbol, rsi)
         if prev is None or rsi is None:
             return None
 

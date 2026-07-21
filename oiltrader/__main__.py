@@ -19,7 +19,10 @@ def main(argv=None) -> int:
     parser.add_argument("--config", "-c", default="config.yaml",
                         help="path to config YAML (default: config.yaml)")
     parser.add_argument("--once", action="store_true",
-                        help="run a single pass and exit (for cron)")
+                        help="run a single news+market pass and exit (testing)")
+    parser.add_argument("--cron", action="store_true",
+                        help="one full scheduled pass (news+setups+morning+pulse)"
+                             " and exit; for a scheduled runner with a persisted DB")
     parser.add_argument("--selftest", action="store_true",
                         help="verify data access + notification channel and exit")
     args = parser.parse_args(argv)
@@ -36,7 +39,9 @@ def main(argv=None) -> int:
     from .daemon import Daemon
     daemon = Daemon(cfg)
     try:
-        if args.once:
+        if args.cron:
+            daemon.run_cron()
+        elif args.once:
             daemon.run_once()
         else:
             daemon.run()
