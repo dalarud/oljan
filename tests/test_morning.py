@@ -94,5 +94,5 @@ def test_build_report_has_all_sections():
     assert "Morgonrapport" in rep
     assert "Nattens läge" in rep
     assert "Nuläge & nivåer" in rep
-    assert "Dagens plan" in rep
+    assert "Spelplan idag" in rep
     assert "referens från föregående session" in rep  # staleness note

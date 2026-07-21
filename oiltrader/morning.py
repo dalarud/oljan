@@ -164,9 +164,11 @@ def build_morning_report(cfg, storage, *, name, symbol, chart, levels,
         if cross is not None and cross.regime not in ("lugnt", "okänd"):
             lines.append(f"🌐 {cross.note}")
 
-    # ── Day plan with time markers ───────────────────────────────────────
-    lines.append("\n*── Dagens plan (svensk tid) ──*")
-    lines.extend(_day_plan(chart, levels, events, mtf_trends))
+    # ── Day plan: intelligence-driven, ties the news picture to levels ───
+    lines.append("\n*── Spelplan idag (underrättelsedriven, svensk tid) ──*")
+    from .playbook import build_playbook
+    lev = float(cfg.get("position.leverage", 1) or 1)
+    lines.extend(build_playbook(events, chart, levels, cross, leverage=lev))
 
     cats = _catalysts_today(now_local, tz)
     if cats:
