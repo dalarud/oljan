@@ -129,3 +129,15 @@ def test_twelvedata_scale_override_wins():
                            scale_to_benchmark=True, anchor=_Anchor(),
                            scale_override={"BZ=F": 1.7930})
     assert p._scale_factor("BZ=F") == 1.7930
+
+
+def test_telegram_html_never_breaks_on_arbitrary_titles():
+    from oiltrader.notifier import _to_telegram_html
+    # stray markdown chars, ampersand, angle bracket, underscore-in-url
+    out = _to_telegram_html(
+        "*BOLD* then *unbalanced and _a_b_ & x<y [x] http://a.com/u_v_w\n_italic_")
+    assert "<b>BOLD</b>" in out
+    assert "&amp;" in out and "&lt;" in out       # escaped, not raw
+    assert "<i>italic</i>" in out
+    # no raw & or < survive (would break Telegram HTML)
+    assert "& " not in out.replace("&amp;", "")

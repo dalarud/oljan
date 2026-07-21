@@ -7,7 +7,9 @@ dedup (don't re-push the same story), quiet hours and optional chart images.
 """
 from __future__ import annotations
 
+import html
 import logging
+import re
 from datetime import datetime, time, timedelta, timezone
 from typing import Optional
 
@@ -146,14 +148,17 @@ class Notifier:
 
     def _send_telegram(self, text: str, chart_path: Optional[str]) -> bool:
         base = f"https://api.telegram.org/bot{self.token}"
+        # HTML mode: only <, >, & are special (all escaped), so arbitrary news
+        # titles with *, _, [, ` never break the parser (Markdown mode did).
+        body = _to_telegram_html(text)
         try:
             if chart_path and self.send_charts:
                 with open(chart_path, "rb") as fh:
                     resp = requests.post(
                         f"{base}/sendPhoto",
                         data={"chat_id": self.chat_id,
-                              "caption": _truncate(text, 1024),
-                              "parse_mode": "Markdown"},
+                              "caption": _truncate(body, 1024),
+                              "parse_mode": "HTML"},
                         files={"photo": fh}, timeout=30)
                 if resp.status_code == 200:
                     return True
@@ -161,12 +166,18 @@ class Notifier:
                             resp.text[:200])
             resp = requests.post(
                 f"{base}/sendMessage",
-                data={"chat_id": self.chat_id, "text": _truncate(text, 4096),
-                      "parse_mode": "Markdown",
+                data={"chat_id": self.chat_id, "text": _truncate(body, 4096),
+                      "parse_mode": "HTML",
                       "disable_web_page_preview": True}, timeout=30)
             if resp.status_code != 200:
                 log.error("Telegram sendMessage failed: %s", resp.text[:200])
-                return False
+                # Last-resort: retry as plain text so the alert still lands.
+                resp = requests.post(
+                    f"{base}/sendMessage",
+                    data={"chat_id": self.chat_id,
+                          "text": _truncate(_strip_markup(text), 4096),
+                          "disable_web_page_preview": True}, timeout=30)
+                return resp.status_code == 200
             return True
         except Exception as e:
             log.error("Telegram send error: %s", e)
@@ -213,6 +224,25 @@ def _time_in_windows(now: time, windows) -> bool:
 
 def _truncate(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _to_telegram_html(text: str) -> str:
+    """Render our lightweight *bold*/_italic_ markup as Telegram HTML.
+
+    HTML parse mode only treats &, <, > as special (all escaped here), so a
+    news title containing *, _, [ or ` can never produce an unterminated-entity
+    error the way Markdown mode did. Emphasis markers we control are converted
+    to <b>/<i>; stray markers survive harmlessly as literal text.
+    """
+    esc = html.escape(text, quote=False)              # & < >
+    esc = re.sub(r"\*([^*\n]+)\*", r"<b>\1</b>", esc)  # *bold* (balanced, 1 line)
+    esc = re.sub(r"(?<!\w)_([^_\n]+)_(?!\w)", r"<i>\1</i>", esc)  # _italic_
+    return esc
+
+
+def _strip_markup(text: str) -> str:
+    """Plain-text fallback: drop emphasis markers, no parse mode at all."""
+    return text.replace("*", "").replace("`", "")
 
 
 def _first_line(text: str) -> str:
