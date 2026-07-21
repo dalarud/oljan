@@ -141,7 +141,8 @@ def _pivot(levels, chart):
     return (chart.price if chart else None), "pris"
 
 
-def build_playbook(events, chart, levels, cross=None, leverage=1.0) -> list[str]:
+def build_playbook(events, chart, levels, cross=None, leverage=1.0,
+                   profile=None) -> list[str]:
     """Return a coherent, intelligence-driven day plan as text lines."""
     intel = classify_intel(events)
     reg = intel["regime"]
@@ -289,6 +290,87 @@ def build_playbook(events, chart, levels, cross=None, leverage=1.0) -> list[str]
     else:
         out.append("\n*Risk:* Geopolitik = hoppig tape; undvik att jaga spikar, "
                    "vänta på retest, stopp bortom brus (>1 ATR).")
+
+    # ---- Personal style overlay (e.g. RSI mean-reversion scalps) -------
+    if profile and str(profile.get("style", "")).lower() == "mean_reversion":
+        out.extend(_style_meanrev(intel, chart, levels, profile,
+                                  r1, r2, s1, s2, piv, piv_name, spike_hi))
+    return out
+
+
+def _trend_dir(intel) -> str:
+    reg, bias = intel["regime"], intel["bias"]
+    if reg == "supply-risk" and bias > 0:
+        return "up"
+    if reg == "premium-unwind" or bias < -0.3:
+        return "down"
+    if reg == "war-premium":
+        return "fade-up"        # upside spikes expected to fade
+    return "range"
+
+
+def _style_meanrev(intel, chart, levels, profile, r1, r2, s1, s2, piv,
+                   piv_name, spike_hi) -> list[str]:
+    ob = profile.get("rsi_overbought", 70)
+    os_ = profile.get("rsi_oversold", 30)
+    tf = profile.get("timeframe", getattr(chart, "timeframe", "5m"))
+    rsi = getattr(chart, "rsi", None)
+    atr = getattr(chart, "atr", None)
+
+    def px(v):
+        return f"{v:.2f}" if isinstance(v, (int, float)) else "n/a"
+
+    rsi_txt = (f"RSI nu {rsi:.0f} ({chart.rsi_state()})" if rsi is not None
+               else "RSI n/a")
+    trend = _trend_dir(intel)
+    out = ["\n*── Din stil: mean reversion (RSI, korta trades) ──*",
+           f"{rsi_txt} på {tf}. Regim: {intel['regime']}."]
+
+    if trend == "up":
+        out.append(
+            f"⚠️ Trenddag UPP → RSI-mean-reversion blir *asymmetrisk*: handla "
+            f"reversion MED trenden. Köp RSI-översålt (<{os_}) på dipp mot "
+            f"{px(s1)}/{piv_name} {px(piv)}, sikta åter mot medel "
+            f"{px(piv)}/{px(r1)}.")
+        out.append(
+            f"Var restriktiv med att KORTA överköpt: i en utbudsrisk-trend kan "
+            f"RSI ligga kvar >{ob} länge. Korta bara mot starkt motstånd "
+            f"({px(r2 or spike_hi)}/{px(spike_hi)}), liten storlek, tajt stopp – "
+            f"och ta vinst snabbt tillbaka mot {px(piv)}.")
+    elif trend == "down":
+        out.append(
+            f"⚠️ Trenddag NED → handla reversion MED trenden: korta RSI-"
+            f"överköpt (>{ob}) på studs mot {px(r1)}/{piv_name} {px(piv)}, "
+            f"sikta åter mot {px(piv)}/{px(s1)}.")
+        out.append(
+            f"Var restriktiv med att köpa översålt: RSI kan ligga <{os_} länge "
+            f"i en nedtrend. Köp bara mot starkt stöd ({px(s2)}), liten storlek, "
+            f"tajt stopp, snabb vinst mot {px(piv)}.")
+    elif trend == "fade-up":
+        out.append(
+            f"Premien väntas fade → din stil passar: KORTA RSI-överköpt (>{ob}) "
+            f"vid motstånd {px(r1)}/{px(spike_hi)}, mål {piv_name} {px(piv)}/"
+            f"{px(s1)}. Köp översålt (<{os_}) vid {px(s1)} bara för studs mot "
+            f"{px(piv)} – inte för en ny uppgång.")
+    else:  # range
+        out.append(
+            f"Range-dag → fade båda extremer: korta RSI>{ob} vid {px(r1)}, köp "
+            f"RSI<{os_} vid {px(s1)}, mål mitten {piv_name} {px(piv)} i båda "
+            f"fall. Mindre storlek när priset är mitt i intervallet.")
+
+    out.append(
+        f"Entry: vänta på RECLAIM (RSI vänder tillbaka in under {ob}/över {os_}) "
+        f"+ helst divergens – fånga inte exakta toppen/botten. Mål = medel "
+        f"({piv_name} {px(piv)}). Stopp bortom nivån / >1 ATR"
+        + (f" (~{atr:.2f})." if isinstance(atr, (int, float)) else "."))
+    out.append(
+        "Nyhetsspärr: fade ALDRIG ett RSI-extremläge som sammanfaller med en "
+        "FÄRSK eskalerings-/störningsrubrik – då är det momentum, inte "
+        "reversion. Kolla regim-vakterna först.")
+    out.append(
+        "Tidsfönster: mean reversion är bäst i etablerad session med "
+        "tvåvägsflöde. Undvik tunn för-Europa (spikar reverterar oförutsägbart) "
+        "och var extra försiktig i US-öppningens första volatilitet 15:30.")
     return out
 
 

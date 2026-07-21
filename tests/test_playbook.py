@@ -87,3 +87,36 @@ def test_playbook_war_premium_fades():
 def test_playbook_handles_no_chart():
     plan = build_playbook([_ev("x")], None, None, None)
     assert len(plan) == 1 and "Ingen tillförlitlig prisdata" in plan[0]
+
+
+_PROFILE = {"style": "mean_reversion", "rsi_oversold": 30,
+            "rsi_overbought": 70, "timeframe": "5m"}
+
+
+def test_style_overlay_trend_day_favours_with_trend_reversion():
+    evs = [_ev("Tanker ablaze, Hormuz exports halted", source="reuters"),
+           _ev("Refinery offline, output halt", source="rigzone"),
+           _ev("Pipeline damage cuts exports", source="oilprice")]
+    c = _chart(); c.rsi = 72; c.rsi_state = lambda: "överköpt"
+    plan = "\n".join(build_playbook(evs, c, _levels(), None, leverage=10,
+                                    profile=_PROFILE))
+    assert "Din stil: mean reversion" in plan
+    assert "asymmetrisk" in plan.lower()            # trend-day warning
+    assert "restriktiv med att korta" in plan.lower()
+    assert "aldrig" in plan.lower()                 # news guard
+
+
+def test_style_overlay_range_day_fades_both_sides():
+    evs = [_ev("Mixed signals, quiet session", direction="neutral")]
+    c = _chart(); c.rsi = 55; c.rsi_state = lambda: "neutral"
+    plan = "\n".join(build_playbook(evs, c, _levels(), None, leverage=1,
+                                    profile=_PROFILE))
+    assert "Din stil: mean reversion" in plan
+    assert "fade båda extremer" in plan.lower()
+
+
+def test_no_style_overlay_without_profile():
+    evs = [_ev("Missile strike escalates")]
+    c = _chart(); c.rsi = 60; c.rsi_state = lambda: "neutral"
+    plan = "\n".join(build_playbook(evs, c, _levels(), None))
+    assert "Din stil" not in plan

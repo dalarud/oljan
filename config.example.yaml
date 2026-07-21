@@ -78,6 +78,20 @@ position:
   # every alert are basis-independent and correct either way.
   broker_offset: 0.0
 
+trader_profile:
+  # Personalises the day playbook to how you actually trade. A mean-reversion
+  # RSI scalper gets regime-aware rules: in a TREND regime it steers you to
+  # fade extremes WITH the trend (RSI can stay >70 in an uptrend), in a RANGE/
+  # premium-fade regime it fades both extremes toward the mean — and it always
+  # blocks fading an RSI extreme that coincides with a fresh breaking headline.
+  style: "mean_reversion"      # mean_reversion | momentum | breakout
+  indicator: "rsi"
+  rsi_oversold: 30
+  rsi_overbought: 70
+  horizon: "scalp"             # scalp | intraday | swing
+  primary_side: "both"         # long | short | both
+  timeframe: "5m"
+
 news:
   # DEFAULT = concurrent batch poll (stream_enabled: false). Every source is
   # collected in parallel each cycle, so a slow source (e.g. Nitter) never

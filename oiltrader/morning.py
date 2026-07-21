@@ -168,7 +168,9 @@ def build_morning_report(cfg, storage, *, name, symbol, chart, levels,
     lines.append("\n*── Spelplan idag (underrättelsedriven, svensk tid) ──*")
     from .playbook import build_playbook
     lev = float(cfg.get("position.leverage", 1) or 1)
-    lines.extend(build_playbook(events, chart, levels, cross, leverage=lev))
+    profile = cfg.get("trader_profile", None)
+    lines.extend(build_playbook(events, chart, levels, cross, leverage=lev,
+                                profile=profile))
 
     cats = _catalysts_today(now_local, tz)
     if cats:
