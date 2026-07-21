@@ -141,6 +141,92 @@ def _pivot(levels, chart):
     return (chart.price if chart else None), "pris"
 
 
+def compact_plan(events, chart, levels, cross=None, profile=None) -> list[str]:
+    """A tight, scannable version of the day plan (a handful of lines)."""
+    intel = classify_intel(events)
+    reg = intel["regime"]
+    if chart is None:
+        return ["Ingen färsk prisdata – sätt nivåer vid Europaöppning."]
+
+    def px(v):
+        return f"{v:.2f}" if isinstance(v, (int, float)) else "n/a"
+
+    r1 = _lvl(levels, chart, True, 0)
+    r2 = _lvl(levels, chart, True, 1)
+    s1 = _lvl(levels, chart, False, 0)
+    s2 = _lvl(levels, chart, False, 1)
+    piv, _ = _pivot(levels, chart)
+    spike = (getattr(levels, "pdh", None) if levels else None) or r2 or r1
+    import math
+    above = math.ceil(spike) if isinstance(spike, (int, float)) else None
+    if above is not None and spike and above <= spike:
+        above = spike + 0.5
+
+    if reg == "supply-risk":
+        n = intel.get("supply_corroboration", 0)
+        stance = f"Utbudsrisk ({n} källor, VERIFIERA fysisk störning) – köp dippar med trenden."
+        bas = f"köp retest {px(s1)}/{px(piv)} → mål {px(r1)}/{px(r2)}"
+        esc = f"ny bekräftad störning + brott {px(spike)} → {px(above)}"
+        fade = f"under {px(s1)} utan ny störning → fade mot {px(s2)}"
+    elif reg == "war-premium":
+        stance = "Krigspremie – fade styrka (premien mean-revertar)."
+        bas = f"fade rusning mot {px(r1)}/{px(spike)} → mål {px(piv)}"
+        esc = f"fysisk störning bekräftas → vänd köp-dipp, brott {px(spike)}→{px(above)}"
+        fade = f"lugn/diplomati → under {px(piv)}/{px(s1)} mot {px(s2)}"
+    elif reg == "premium-unwind":
+        stance = "Premie-avveckling – sälj studsar."
+        bas = f"sälj studs mot {px(r1)}/{px(piv)} → {px(s1)}/{px(s2)}"
+        esc = f"ny attack → täck, brott {px(r1)}→{px(spike)}"
+        fade = f"fortsatt lugn → glid mot {px(s2)}"
+    elif reg in ("inventory", "opec"):
+        what = "Lager" if reg == "inventory" else "OPEC"
+        stance = f"{what}-driven – handla reaktionen EFTER datan."
+        bas = f"range {px(s1)}–{px(r1)} in i katalysatorn"
+        esc = f"bullish överraskning + brott {px(r1)} → {px(r2)}"
+        fade = f"bearish + brott {px(s1)} → {px(s2)}"
+    else:
+        stance = "Blandat – låt nivåerna leda, mindre storlek."
+        bas = f"range {px(s1)}–{px(r1)} runt {px(piv)}"
+        esc = f"brott {px(r1)} m. volym → {px(r2)}"
+        fade = f"brott {px(s1)} m. volym → {px(s2)}"
+
+    out = [f"*Regim:* {stance}",
+           f"• Bas: {bas}",
+           f"• ↑ {esc}",
+           f"• ↓ {fade}"]
+    if cross is not None and getattr(cross, "regime", "") == "makro-driven":
+        out.append("⚠️ Makro-driven rörelse (USD/aktier) – dämpa övertygelsen.")
+    if profile and str(profile.get("style", "")).lower() == "mean_reversion":
+        out.append(_style_oneliner(intel, chart, levels, profile, r1, r2, s1,
+                                   piv, spike))
+    out.append("🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · "
+               "🔻 eldupphör→sälj studsar")
+    return out
+
+
+def _style_oneliner(intel, chart, levels, profile, r1, r2, s1, piv, spike) -> str:
+    ob = profile.get("rsi_overbought", 70)
+    os_ = profile.get("rsi_oversold", 30)
+    rsi = getattr(chart, "rsi", None)
+
+    def px(v):
+        return f"{v:.2f}" if isinstance(v, (int, float)) else "n/a"
+
+    now = f"RSI {rsi:.0f} · " if rsi is not None else ""
+    trend = _trend_dir(intel)
+    if trend == "up":
+        body = (f"köp RSI<{os_} vid stöd {px(s1)} (med trend)→{px(piv)}; korta "
+                f"RSI>{ob} bara vid {px(r2 or spike)} litet/tajt")
+    elif trend == "down":
+        body = (f"korta RSI>{ob} vid {px(r1)} (med trend)→{px(piv)}; köp RSI<"
+                f"{os_} bara vid {px(s1)} litet")
+    elif trend == "fade-up":
+        body = f"korta RSI>{ob} vid {px(r1)}/{px(spike)} → {px(piv)}"
+    else:
+        body = f"fade RSI>{ob}@{px(r1)} & RSI<{os_}@{px(s1)} → mitten {px(piv)}"
+    return f"🔁 Din stil: {now}{body} · fade ALDRIG in i färsk rubrik"
+
+
 def build_playbook(events, chart, levels, cross=None, leverage=1.0,
                    profile=None) -> list[str]:
     """Return a coherent, intelligence-driven day plan as text lines."""

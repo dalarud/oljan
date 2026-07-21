@@ -26,6 +26,7 @@ from .indicators import ChartContext, compute as compute_indicators
 from .market_data import MarketData
 from .notifier import Notifier
 from .sentiment import SentimentEngine
+from .setups import SetupMonitor, format_setup
 from .storage import Storage
 from .watchdog import SourceHealth, Watchdog
 
@@ -66,6 +67,8 @@ class Daemon:
         self.evaluator = AlertEvaluator(cfg, self.storage, self.market)
         self.crossasset = CrossAssetMonitor(
             cfg, self.storage, cfg.primary_instrument["symbol"])
+        self.setups = SetupMonitor(cfg)
+        self.setup_cooldown_min = cfg.get("setups.cooldown_minutes", 30)
 
         self.symbols = [i["symbol"] for i in cfg.instruments]
         self.primary = cfg.primary_instrument["symbol"]
@@ -238,6 +241,50 @@ class Daemon:
                 self._chart_cache[sym] = tf_charts
             else:
                 log.warning("No price data for %s (intraday or daily)", sym)
+        self._check_setups()
+
+    def _recent_news_bias(self, minutes: int = 20) -> float:
+        """Net directional bias of substantial events in the last `minutes`."""
+        from datetime import timedelta
+        since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+        evs = [e for e in self.storage.recent_events(since)
+               if e.get("source") not in ("seed", None)]
+        strong = [e for e in evs if float(e.get("substance") or 0) >= 0.4]
+        if not strong:
+            return 0.0
+        b = sum(1 for e in strong if e.get("direction") == "bullish")
+        s = sum(1 for e in strong if e.get("direction") == "bearish")
+        return (b - s) / max(b + s, 1)
+
+    def _check_setups(self) -> None:
+        """Fire a proactive alert when a trade entry condition triggers."""
+        if not self.setups.enabled:
+            return
+        chart = self._primary_chart(self.primary)
+        if chart is None or not getattr(chart, "price_sane", True):
+            return
+        if chart.last_candle_age_min > self.analyzer.stale_after_min:
+            return  # not live (e.g. ETF proxy resting) -> don't signal
+        trend = self.analyzer._trend_hint(self._mtf_trends(self.primary))
+        levels = self._key_levels(chart)
+        setup = self.setups.update_and_detect(
+            self.primary, chart, levels, trend, self._recent_news_bias())
+        if setup is None:
+            return
+        if self.notifier.in_quiet_hours():
+            return
+        from datetime import timedelta
+        since = datetime.now(timezone.utc) - timedelta(
+            minutes=self.setup_cooldown_min)
+        if self.storage.notified_since(setup.dedup_key(), since):
+            return  # already flagged this side recently
+        name = self.cfg.primary_instrument.get("name", self.primary)
+        msg = format_setup(setup, name, disp=lambda v: v + self.analyzer.broker_offset)
+        if self.notifier.send_text(msg):
+            self.storage.record_notification(None, "setup", setup.dedup_key())
+            log.info("SETUP %s fired (%s) rsi %.0f->%.0f conf=%s",
+                     setup.side, setup.kind, setup.rsi_prev, setup.rsi_now,
+                     setup.confidence)
 
     def _task_daily(self) -> None:
         for sym in self.symbols:

@@ -96,90 +96,50 @@ def build_morning_report(cfg, storage, *, name, symbol, chart, levels,
     events = [e for e in storage.recent_events(since)
               if e.get("source") not in ("seed", None)]
 
-    lines: list[str] = []
+    from .playbook import compact_plan
+    profile = cfg.get("trader_profile", None)
     px = f"{chart.price:.2f}" if chart is not None else "n/a"
-    ctf = (chart.timeframe or "") if chart is not None else ""
-    lines.append(f"🌅 *Oljan – Morgonrapport {now_local:%Y-%m-%d %H:%M}*")
-    lines.append(f"{name} {px} {('('+ctf+')') if ctf else ''} · "
-                 f"{len(events)} natthändelser (senaste {night_hours:g}h)")
+    lines: list[str] = [f"🌅 *Morgonrapport {now_local:%H:%M}* · {name} {px}"]
 
-    # ── Night recap ──────────────────────────────────────────────────────
-    lines.append("\n*── Nattens läge ──*")
-    if not events:
-        lines.append("Lugnt: inga relevanta nyheter under natten.")
-    else:
+    # 1) One-line situation + top headline.
+    if events:
         bias, nn, nb, nbe = _bias_from_events(events)
-        cat_w: dict[str, float] = {}
-        for e in events:
-            cat_w[e.get("category", "other")] = \
-                cat_w.get(e.get("category", "other"), 0.0) + _weight(e)
-        top_cat = max(cat_w, key=cat_w.get) if cat_w else "—"
-        n_src = len(set(e.get("source") for e in events))
-        lines.append(f"Netto-bias: *{bias}* (bull {nb} / bear {nbe}, "
-                     f"styrka {nn:+.2f})")
-        lines.append(f"Främsta drivkraft: {top_cat} · {n_src} källor")
-        top = sorted(events, key=_weight, reverse=True)[:3]
-        for e in top:
-            d = {"bullish": "🟢", "bearish": "🔴"}.get(e.get("direction"), "⚪")
-            t = _fmt_ts(e.get("ts", 0), tz)
-            title = (e.get("title") or "").strip()[:100]
-            url = e.get("url") or ""
-            lines.append(f"{d} {t} {title}" + (f"\n   🔗 {url}" if url else ""))
-
-    # ── Now / levels ─────────────────────────────────────────────────────
-    lines.append("\n*── Nuläge & nivåer ──*")
-    if chart is None:
-        lines.append("⚠️ Ingen tillförlitlig prisdata just nu – nivåer utelämnas "
-                     "(ofta normalt före Europaöppning när ETF-proxyn vilar).")
+        lines.append(f"Bias *{bias}* · {len(events)} natthändelser "
+                     f"(🟢{nb}/🔴{nbe})")
+        top = sorted(events, key=_weight, reverse=True)[0]
+        d = {"bullish": "🟢", "bearish": "🔴"}.get(top.get("direction"), "⚪")
+        lines.append(f"📰 {d} {(top.get('title') or '').strip()[:90]}")
+        if top.get("url"):
+            lines.append(f"   🔗 {top['url']}")
     else:
-        age = getattr(chart, "last_candle_age_min", 0) or 0
-        if age > 30:
-            lines.append(f"ℹ️ Nivåerna är *referens från föregående session* "
-                         f"(feed {age:.0f}m gammal, vilar över natten) – "
-                         f"bekräfta vid Europaöppning.")
-        if mtf_trends:
-            arrows = {"up": "↑", "down": "↓", "sideways": "→"}
-            mtf = " · ".join(f"{tf} {arrows.get(tr, '→')}"
-                             for tf, tr in mtf_trends.items())
-            lines.append(f"Trend MTF: {mtf} · RSI {chart.rsi:.0f} "
-                         f"({chart.rsi_state()})")
+        lines.append("Bias neutral · lugn natt, inga relevanta nyheter.")
+
+    # 2) Levels on one line + a single staleness note.
+    if chart is None:
+        lines.append("📊 ⚠️ Ingen färsk prisdata – nivåer sätts vid Europaöppning.")
+    else:
         res = levels.resistances_above() if levels else []
         sup = levels.supports_below() if levels else []
-        if res:
-            lines.append("🎯 Motstånd: " + " · ".join(
-                f"{lbl} {v:.2f}" for lbl, v in res[:3]))
-        if sup:
-            lines.append("🛡 Stöd: " + " · ".join(
-                f"{lbl} {v:.2f}" for lbl, v in sup[:3]))
-        if levels:
-            extra = []
-            if levels.vwap:
-                extra.append(f"VWAP {levels.vwap:.2f}")
-            if levels.pdh and levels.pdl:
-                extra.append(f"igår {levels.pdl:.2f}–{levels.pdh:.2f}")
-            if levels.day_high and levels.day_low:
-                extra.append(f"natt {levels.day_low:.2f}–{levels.day_high:.2f}")
-            if extra:
-                lines.append("· " + " · ".join(extra))
-        if cross is not None and cross.regime not in ("lugnt", "okänd"):
-            lines.append(f"🌐 {cross.note}")
+        piv = (levels.vwap or levels.pdc) if levels else None
+        r = "/".join(f"{v:.2f}" for _, v in res[:3]) or "–"
+        s = "/".join(f"{v:.2f}" for _, v in sup[:3]) or "–"
+        pv = f" · pivot {piv:.2f}" if piv else ""
+        lines.append(f"📊 {px} · R {r} · S {s}{pv} · RSI {chart.rsi:.0f}")
+        age = getattr(chart, "last_candle_age_min", 0) or 0
+        if age > 30:
+            lines.append("   _(nivåer = gårdagssession, bekräfta vid 09:00)_")
 
-    # ── Day plan: intelligence-driven, ties the news picture to levels ───
-    lines.append("\n*── Spelplan idag (underrättelsedriven, svensk tid) ──*")
-    from .playbook import build_playbook
-    lev = float(cfg.get("position.leverage", 1) or 1)
-    profile = cfg.get("trader_profile", None)
-    lines.extend(build_playbook(events, chart, levels, cross, leverage=lev,
-                                profile=profile))
+    # 3) Compact, intelligence-driven plan (regime → levels → your style).
+    lines.append("\n🎯 *Plan idag:*")
+    lines.extend(compact_plan(events, chart, levels, cross, profile))
 
+    # 4) Catalyst clock (one line).
     cats = _catalysts_today(now_local, tz)
     if cats:
-        lines.append("\n🗓 *Tidsmarkörer idag:*")
-        for hhmm, label in cats:
-            lines.append(f"  {hhmm}  {label}")
+        lines.append("\n🗓 " + " · ".join(f"{t} {l.split(' –')[0].split(' (')[0]}"
+                                          for t, l in cats))
 
-    lines.append("\n_Beslutsstöd, ej finansiell rådgivning. Handla din egen plan "
-                 "och respektera stoppar._")
+    lines.append("_Beslutsstöd, ej rådgivning._")
     return "\n".join(lines)
 
 

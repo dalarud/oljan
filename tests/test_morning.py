@@ -87,12 +87,16 @@ def test_build_report_has_all_sections():
         def recent_events(self, since):
             return [dict(_ev("bullish"), ts=int(datetime.now(timezone.utc)
                                                  .timestamp()))]
-    cfg = SimpleNamespace(get=lambda k, d=None: d)
+    prof = {"style": "mean_reversion", "rsi_overbought": 70, "rsi_oversold": 30}
+    cfg = SimpleNamespace(get=lambda k, d=None: {"trader_profile": prof}.get(k, d))
     rep = build_morning_report(
         cfg, _St(), name="Brent", symbol="BZ=F", chart=chart, levels=levels,
         mtf_trends={"5m": "up", "1h": "up"}, cross=None, night_hours=9, tz=STHLM)
     assert "Morgonrapport" in rep
-    assert "Nattens läge" in rep
-    assert "Nuläge & nivåer" in rep
-    assert "Spelplan idag" in rep
-    assert "referens från föregående session" in rep  # staleness note
+    assert "Bias" in rep                     # one-line situation
+    assert "📊" in rep and "R " in rep       # levels line
+    assert "Plan idag" in rep
+    assert "Din stil" in rep                 # style overlay present
+    assert "gårdagssession" in rep           # staleness note (age > 30)
+    # compact: should be short and scannable
+    assert rep.count("\n") < 22
