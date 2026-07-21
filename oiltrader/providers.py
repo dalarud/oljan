@@ -217,6 +217,12 @@ class TwelveDataProvider:
         iv = self._IV.get(interval)
         if not td or not iv or not self.api_key:
             return pd.DataFrame(columns=_EMPTY)
+        # As a SCALED intraday proxy the ETF's absolute daily level is wrong
+        # (e.g. BNO ≈ $49 vs Brent ≈ $86). Decline daily requests so the chain
+        # falls through to a real daily source (Alpha Vantage). Intraday scaling
+        # still works — it uses _raw_fetch("1day") internally, not this path.
+        if interval == "1d" and self.scale:
+            return pd.DataFrame(columns=_EMPTY)
         n = min(int(parse_lookback(lookback) / self._IV_SECS[iv]) + 5, 5000)
         df = self._raw_fetch(td, iv, n)
         if df.empty:
