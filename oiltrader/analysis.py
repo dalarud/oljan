@@ -48,6 +48,10 @@ class Analyzer:
         # numbers so they match the trading screen. %/ATR distances are basis-
         # independent regardless and are always shown.
         self.broker_offset = float(cfg.get("position.broker_offset", 0.0) or 0.0)
+        # Personal trading style (used to add a tailored tip to each alert).
+        self.profile = cfg.get("trader_profile", None) or {}
+        self.rsi_ob = float(self.profile.get("rsi_overbought", 70))
+        self.rsi_os = float(self.profile.get("rsi_oversold", 30))
         self.verbosity = str(cfg.get("notifications.verbosity", "compact")).lower()
         self.stale_after_min = float(cfg.get("notifications.stale_after_minutes", 20))
         # symbol -> friendly name (e.g. BZ=F -> "Brent (UKOIL)")
@@ -70,15 +74,17 @@ class Analyzer:
         confidence = self._combined_confidence(event, analogs)
         headline = self._headline(event, conviction, action_short)
 
+        style_tip = self._style_tip(event, chart, levels,
+                                    self._trend_hint(mtf_trends))
         if self.verbosity == "full":
             message = self._format_full(
                 event, chart, analogs, headline, assessment, recommendation,
                 confidence, uncertainties, stop, mtf_trends, conviction,
-                action_short, levels, cross)
+                action_short, levels, cross, style_tip)
         else:
             message = self._format_compact(
                 event, chart, conviction, action_short, confidence, levels,
-                cross)
+                cross, style_tip)
 
         return Analysis(
             event=event, chart=chart, analogs=analogs, headline=headline,
@@ -376,6 +382,64 @@ class Analyzer:
     def _dir_emoji(self, event) -> str:
         return {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪"}[event.direction]
 
+    def _trend_hint(self, mtf_trends) -> str:
+        up = sum(1 for t in (mtf_trends or {}).values() if t == "up")
+        dn = sum(1 for t in (mtf_trends or {}).values() if t == "down")
+        return "up" if up > dn else "down" if dn > up else "range"
+
+    def _style_tip(self, event, chart, levels, trend) -> Optional[str]:
+        """A tailored mean-reversion tip, only when RSI is AT an extreme.
+
+        Regime/trend-aware (fade with the trend, be cautious against it) and
+        news-aware (never fade an RSI extreme that lines up with a fresh
+        same-direction headline — that's momentum, not reversion)."""
+        if str(self.profile.get("style", "")).lower() != "mean_reversion":
+            return None
+        if chart is None or not getattr(chart, "price_sane", True):
+            return None
+        if chart.last_candle_age_min > self.stale_after_min:
+            return None
+        rsi = getattr(chart, "rsi", None)
+        if rsi is None:
+            return None
+        piv = None
+        if levels:
+            piv = levels.vwap or getattr(levels, "pdc", None)
+        piv_txt = f"{self._disp(piv):.2f}" if piv else "medel/VWAP"
+        # a fresh, substantial, same-direction headline => momentum risk
+        fresh_mom = (event.is_substantial and event.freshness > 0.6
+                     and event.factors.get("is_action") is not False)
+
+        if rsi >= self.rsi_ob:
+            res = levels.resistances_above() if levels else []
+            r = res[0][1] if res else getattr(chart, "nearest_resistance", None)
+            rtxt = f" vid motstånd {self._disp(r):.2f}" if r else ""
+            if fresh_mom and event.direction == "bullish":
+                return (f"🔁 Din stil: RSI {rsi:.0f} överköpt{rtxt} MEN färsk "
+                        f"hausse-rubrik → momentum, ej reversion. Fade INTE nu; "
+                        f"vänta på reclaim <{self.rsi_ob:.0f}.")
+            if trend == "up":
+                return (f"🔁 Din stil: RSI {rsi:.0f} överköpt{rtxt} i upptrend → "
+                        f"korta bara litet/tajt, vinst mot {piv_txt}; hellre "
+                        f"vänta på reclaim <{self.rsi_ob:.0f}.")
+            return (f"🔁 Din stil: RSI {rsi:.0f} överköpt{rtxt} → reversions-"
+                    f"short mot {piv_txt}, stopp >1 ATR över nivån.")
+        if rsi <= self.rsi_os:
+            sup = levels.supports_below() if levels else []
+            s = sup[0][1] if sup else getattr(chart, "nearest_support", None)
+            stxt = f" vid stöd {self._disp(s):.2f}" if s else ""
+            if fresh_mom and event.direction == "bearish":
+                return (f"🔁 Din stil: RSI {rsi:.0f} översålt{stxt} MEN färsk "
+                        f"baisse-rubrik → momentum. Köp INTE nu; vänta på "
+                        f"reclaim >{self.rsi_os:.0f}.")
+            if trend == "down":
+                return (f"🔁 Din stil: RSI {rsi:.0f} översålt{stxt} i nedtrend → "
+                        f"köp bara litet/tajt mot {piv_txt}; hellre vänta på "
+                        f"reclaim >{self.rsi_os:.0f}.")
+            return (f"🔁 Din stil: RSI {rsi:.0f} översålt{stxt} → reversions-köp "
+                    f"mot {piv_txt}, stopp >1 ATR under nivån.")
+        return None  # RSI mid-range: no mean-reversion edge, stay quiet
+
     def _disp(self, val: float) -> float:
         """Absolute price re-based to the broker's basis for display."""
         return val + self.broker_offset
@@ -439,7 +503,7 @@ class Analyzer:
                 "neutral": "Neutral"}[event.direction]
 
     def _format_compact(self, event, chart, conviction, action_short,
-                        confidence, levels, cross=None) -> str:
+                        confidence, levels, cross=None, style_tip=None) -> str:
         published = event.first_ts or event.item.ts
         if published.tzinfo is None:
             published = published.replace(tzinfo=timezone.utc)
@@ -457,6 +521,8 @@ class Analyzer:
         ]
         if cross is not None and cross.regime not in ("lugnt", "okänd"):
             parts.append(f"🌐 {self._cross_tag(cross)}: {cross.note}")
+        if style_tip:
+            parts.append(style_tip)
         parts.append(
             f"\n🔗 {event.item.url or '(länk saknas)'} · {published:%H:%M UTC}")
         return "\n".join(parts)
@@ -471,7 +537,7 @@ class Analyzer:
     def _format_full(self, event, chart, analogs, headline, assessment,
                      recommendation, confidence, uncertainties, stop,
                      mtf_trends, conviction, action_short, levels=None,
-                     cross=None) -> str:
+                     cross=None, style_tip=None) -> str:
         bar = _conviction_bar(conviction)
         tf = self.cfg.get("market_data.analysis_timeframe", "")
         fresh = _freshness_label(event)
@@ -533,6 +599,10 @@ class Analyzer:
         # 5b) Cross-asset regime: is this oil-specific or the macro complex?
         if cross is not None and cross.regime not in ("lugnt", "okänd"):
             parts.append(f"🌐 {self._cross_tag(cross)}: {cross.note}")
+
+        # 5c) Personal style tip (mean-reversion RSI) when at an extreme.
+        if style_tip:
+            parts.append(style_tip)
 
         # 6) Sources with per-source timing + who was first (lead-time intel).
         parts.append(self._sources_block(event))

@@ -85,3 +85,63 @@ def test_conviction_tempered_by_macro():
     assert an._apply_cross(80, ev, macro) == 68        # 80 * 0.85
     assert an._apply_cross(80, ev, specific) == 86      # 80 * 1.08
     assert an._apply_cross(80, ev, None) == 80
+
+
+def _mk_analyzer():
+    from oiltrader.analysis import Analyzer
+    from types import SimpleNamespace
+    prof = {"style": "mean_reversion", "rsi_overbought": 70, "rsi_oversold": 30}
+    base = {"trader_profile": prof, "notifications.stale_after_minutes": 20}
+    cfg = SimpleNamespace(get=lambda k, d=None: base.get(k, d))
+    cfg.instruments = []
+    return Analyzer(cfg, SimpleNamespace(min_sample=5))
+
+
+def _mk_event(direction="neutral", substantial=False, fresh=1.0, is_action=None):
+    from types import SimpleNamespace
+    return SimpleNamespace(direction=direction, is_substantial=substantial,
+                           freshness=fresh,
+                           factors={"is_action": is_action})
+
+
+def _mk_chart(rsi, age=1.0):
+    from types import SimpleNamespace
+    return SimpleNamespace(rsi=rsi, price_sane=True, last_candle_age_min=age,
+                           nearest_resistance=89.0, nearest_support=88.0)
+
+
+def _mk_levels():
+    from types import SimpleNamespace
+    return SimpleNamespace(vwap=88.43, pdc=88.4,
+                           resistances_above=lambda: [("rund", 89.0)],
+                           supports_below=lambda: [("nivå", 88.1)])
+
+
+def test_style_tip_overbought_uptrend_is_cautious():
+    an = _mk_analyzer()
+    tip = an._style_tip(_mk_event(), _mk_chart(74), _mk_levels(), "up")
+    assert tip and "överköpt" in tip and "upptrend" in tip
+    assert "litet" in tip.lower()
+
+
+def test_style_tip_oversold_range_is_reversion_buy():
+    an = _mk_analyzer()
+    tip = an._style_tip(_mk_event(), _mk_chart(26), _mk_levels(), "range")
+    assert tip and "översålt" in tip and "reversions-köp" in tip
+
+
+def test_style_tip_news_momentum_guard():
+    an = _mk_analyzer()
+    ev = _mk_event(direction="bullish", substantial=True, fresh=0.9)
+    tip = an._style_tip(ev, _mk_chart(75), _mk_levels(), "up")
+    assert "momentum" in tip and "INTE" in tip
+
+
+def test_style_tip_quiet_when_rsi_midrange():
+    an = _mk_analyzer()
+    assert an._style_tip(_mk_event(), _mk_chart(50), _mk_levels(), "up") is None
+
+
+def test_style_tip_quiet_when_stale():
+    an = _mk_analyzer()
+    assert an._style_tip(_mk_event(), _mk_chart(75, age=99), _mk_levels(), "up") is None
