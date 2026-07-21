@@ -57,6 +57,16 @@ class MarketData:
                 time.sleep(self.request_spacing)
         return out
 
+    def refresh_one(self, symbol: str, interval: str) -> pd.DataFrame:
+        """Fetch + persist a SINGLE timeframe (used by the fast setup poll to
+        keep API usage to one call per cycle)."""
+        lookback = dict(self.timeframes).get(interval, "5d")
+        df = self._fetch(symbol, interval, lookback)
+        if not df.empty:
+            self.storage.upsert_candles(symbol, interval, df)
+            self._record_source(symbol, interval)
+        return df
+
     def refresh_daily(self, symbol: str) -> pd.DataFrame:
         df = self._fetch(symbol, "1d", self.daily_lookback)
         if not df.empty:

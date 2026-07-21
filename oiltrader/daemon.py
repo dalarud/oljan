@@ -69,6 +69,7 @@ class Daemon:
             cfg, self.storage, cfg.primary_instrument["symbol"])
         self.setups = SetupMonitor(cfg)
         self.setup_cooldown_min = cfg.get("setups.cooldown_minutes", 30)
+        self.fast_skip_min = cfg.get("market_data.fast_skip_minutes", 20)
 
         self.symbols = [i["symbol"] for i in cfg.instruments]
         self.primary = cfg.primary_instrument["symbol"]
@@ -102,6 +103,9 @@ class Daemon:
                  cfg.get("market_data.refresh_seconds", 120)),
             Task("mature", self._task_mature, 3600),
         ]
+        if self.setups.enabled:
+            self.tasks.append(Task("market_fast", self._task_market_fast,
+                                   cfg.get("market_data.fast_refresh_seconds", 60)))
         if not self.stream_enabled:
             self.tasks.append(Task("news", self._task_news,
                                    cfg.get("news.poll_seconds", 60)))
@@ -241,6 +245,23 @@ class Daemon:
                 self._chart_cache[sym] = tf_charts
             else:
                 log.warning("No price data for %s (intraday or daily)", sym)
+
+    def _task_market_fast(self) -> None:
+        """High-cadence poll of ONLY the primary analysis timeframe, to drive
+        prompt setup detection. Conserves API calls by skipping when the feed
+        is resting (stale candle) or during quiet hours."""
+        if self.notifier.in_quiet_hours():
+            return
+        sym, iv = self.primary, self.analysis_tf
+        cur = self._chart_cache.get(sym, {}).get(iv)
+        if cur is not None and cur.last_candle_age_min > self.fast_skip_min:
+            return  # feed resting (e.g. ETF closed); full task re-checks at its cadence
+        df = self.market.refresh_one(sym, iv)
+        if df is None or df.empty or len(df) < 30:
+            return
+        ctx = compute_indicators(df, sym, self.cfg, timeframe=iv)
+        ctx.source = self.market.source_of(sym, iv)
+        self._chart_cache.setdefault(sym, {})[iv] = ctx
         self._check_setups()
 
     def _recent_news_bias(self, minutes: int = 20) -> float:

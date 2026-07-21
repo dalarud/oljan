@@ -51,7 +51,13 @@ market_data:
   # the historical event-study horizons. 5m suits a 1-15m intraday trader.
   analysis_timeframe: "5m"
   daily_lookback: "5y"       # daily candles for regime / base-rate context
-  refresh_seconds: 60        # how often to refresh price data (intraday)
+  refresh_seconds: 300       # full multi-timeframe/multi-symbol refresh cadence
+  # Fast poll of ONLY the primary analysis timeframe, to drive prompt setup
+  # detection without burning the API quota (one call per cycle). It skips
+  # fetching when the feed is resting (candle older than fast_skip_minutes) or
+  # during quiet hours, so on a free tier calls concentrate in the live session.
+  fast_refresh_seconds: 60
+  fast_skip_minutes: 20
   request_spacing: 0.8       # seconds between provider calls (rate-limit safety)
 
 indicators:
