@@ -1,0 +1,19 @@
+services:
+  oljan:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: oljan:latest
+    container_name: oljan
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    volumes:
+      - ../config.yaml:/app/config.yaml:ro
+      - oljan-data:/app/data
+    # Keep the container timezone deterministic (all logic is UTC anyway).
+    environment:
+      - TZ=UTC
+
+volumes:
+  oljan-data:

@@ -1,0 +1,432 @@
+# ======================================================================
+# Oljan – crude oil (WTI/Brent) watch & analysis engine
+# Copy to config.yaml and adjust. Secrets go in .env, not here.
+# ======================================================================
+
+general:
+  timezone: "UTC"            # all internal calculations are UTC
+  loop_interval_seconds: 15  # base tick of the daemon scheduler (intraday)
+  data_dir: "./data"         # sqlite db, cache, chart images, logs
+  log_level: "INFO"
+
+instruments:
+  # Yahoo Finance symbols. BZ=F = Brent front-month (UKOIL), CL=F = WTI.
+  # Levels, targets and stops in notifications are based on the PRIMARY.
+  - name: "Brent (UKOIL)"
+    symbol: "BZ=F"
+    primary: true
+  - name: "WTI"
+    symbol: "CL=F"
+    primary: false
+
+market_data:
+  # "yahoo" = keyless Yahoo chart JSON via requests (recommended, robust).
+  # "yfinance" = optional, requires the yfinance package.
+  provider: "yahoo"
+  # Fallbacks tried in order when the primary returns nothing (string or list):
+  #  - "twelvedata": intraday via oil ETFs (BNO≈Brent, USO≈WTI); with
+  #    twelvedata_scale_to_benchmark the ETF is anchored to the benchmark's real
+  #    daily close -> Brent-level intraday ESTIMATE (labelled in the alert).
+  #  - "alphavantage": REAL Brent/WTI *daily* data (no intraday; ~25 calls/day).
+  # On a non-throttled IP Yahoo already gives exact intraday, so these only
+  # kick in when Yahoo is unavailable.
+  fallback_provider: ["twelvedata", "alphavantage"]
+  twelvedata_symbols: {"BZ=F": "BNO", "CL=F": "USO"}
+  twelvedata_scale_to_benchmark: true
+  # Optional manual calibration of the ETF->benchmark scale factor, per symbol.
+  # When the free daily anchor (Alpha Vantage) is stale or unavailable, read the
+  # real benchmark price off a feed you trust (e.g. TradingView UKOIL) and set
+  #   factor = your_price / current_raw_ETF_close
+  # This OVERRIDES the auto anchor so price + all levels sit on the real level
+  # and then track the ETF's intraday % moves. Recalibrate if it drifts.
+  # scale_override: {"BZ=F": 1.7930}
+  # Intraday timeframes to fetch/analyse. Yahoo intraday lookback caps:
+  # 1m -> 7d, 5m/15m/30m -> 60d, 1h -> 730d.
+  timeframes:
+    - {interval: "1m",  lookback: "5d"}
+    - {interval: "5m",  lookback: "30d"}
+    - {interval: "15m", lookback: "60d"}
+    - {interval: "1h",  lookback: "180d"}
+  # Primary timeframe used for the notification chart, support/resistance and
+  # the historical event-study horizons. 5m suits a 1-15m intraday trader.
+  analysis_timeframe: "5m"
+  daily_lookback: "5y"       # daily candles for regime / base-rate context
+  refresh_seconds: 300       # full multi-timeframe/multi-symbol refresh cadence
+  # Fast poll of ONLY the primary analysis timeframe, to drive prompt setup
+  # detection without burning the API quota (one call per cycle). It skips
+  # fetching when the feed is resting (candle older than fast_skip_minutes) or
+  # during quiet hours, so on a free tier calls concentrate in the live session.
+  fast_refresh_seconds: 60
+  fast_skip_minutes: 20
+  # Yahoo (real ~24h Brent) tolerates infrequent single requests but 429-bans
+  # bursts on a shared IP; after a 429 the provider stands down this long.
+  yahoo_cooldown_seconds: 45
+  request_spacing: 3.0       # seconds between provider calls (rate-limit safety)
+
+indicators:
+  ema_fast: 12
+  ema_slow: 26
+  rsi_period: 14
+  atr_period: 14
+  bb_period: 20
+  bb_std: 2.0
+  sr_lookback: 300           # candles used for support/resistance detection
+  sr_pivot_width: 3          # bars on each side to qualify a swing pivot
+  sr_cluster_pct: 0.5        # merge levels within 0.5% of each other
+  volume_avg_period: 20
+
+position:
+  # Makes recommendations leverage-aware. Purely informational.
+  leverage: 10
+  side: "long"               # long | short | flat
+  entry_price: null          # optional; enables PnL/liquidation-distance notes
+  # Optional one-time calibration when the intraday feed is a scaled ETF
+  # estimate: (your broker's UKOIL price) minus (the price Oljan shows), e.g.
+  # broker 68.50 - Oljan 68.30 => 0.20. Re-bases displayed absolute levels to
+  # match your screen. Leave 0 to show raw feed prices. The %/ATR distances in
+  # every alert are basis-independent and correct either way.
+  broker_offset: 0.0
+
+trader_profile:
+  # Personalises the day playbook to how you actually trade. A mean-reversion
+  # RSI scalper gets regime-aware rules: in a TREND regime it steers you to
+  # fade extremes WITH the trend (RSI can stay >70 in an uptrend), in a RANGE/
+  # premium-fade regime it fades both extremes toward the mean — and it always
+  # blocks fading an RSI extreme that coincides with a fresh breaking headline.
+  style: "mean_reversion"      # mean_reversion | momentum | breakout
+  indicator: "rsi"
+  rsi_oversold: 30
+  rsi_overbought: 70
+  horizon: "scalp"             # scalp | intraday | swing
+  primary_side: "both"         # long | short | both
+  timeframe: "5m"
+
+setups:
+  # Proactive trade-trigger alerts. For a mean-reversion RSI trader the trigger
+  # is the RECLAIM (RSI pushing back through the threshold from oversold/
+  # overbought) at a key level — fired on the live chart as it happens,
+  # trend- and news-aware. Only fires when price data is live (fresh candle).
+  enabled: true
+  level_proximity_pct: 0.35    # how close to a level counts as "at" it
+  cooldown_minutes: 30         # min gap between same-side setup alerts
+
+news:
+  # DEFAULT = concurrent batch poll (stream_enabled: false). Every source is
+  # collected in parallel each cycle, so a slow source (e.g. Nitter) never
+  # blocks fast ones; at poll_seconds=60 the latency is on par with streaming
+  # but with far fewer moving parts (no threads/queue/gather-window). Set
+  # stream_enabled: true only if you want each source on its own poll cadence:
+  # items then alert as soon as they arrive after a short corroboration window.
+  stream_enabled: false
+  stream_gather_seconds: 25      # streaming only: wait for corroborating sources
+  stream_priority_gather_seconds: 8  # streaming only: high-cred sources fire faster
+  poll_seconds: 60             # batch-mode cycle (and per-source cadence if streaming)
+  collector_timeout_seconds: 25  # batch-mode: per-cycle collection budget
+  max_age_minutes: 240         # ignore news older than this (intraday focus)
+  freshness_halflife_minutes: 60  # freshness score halves every hour
+  cluster_similarity: 0.4      # story-clustering threshold (token Jaccard)
+  gdelt_enabled: true          # keyless global news/OSINT firehose (~15min)
+  gdelt_query: ""              # blank = sensible oil default
+  rss_feeds:
+    - "https://oilprice.com/rss/main"
+    - "https://www.eia.gov/rss/todayinenergy.xml"
+    - "https://www.rigzone.com/news/rss/rigzone_latest.aspx"
+    # Google News query (keyless, broad, reliable). Tweak the query as you like.
+    - "https://news.google.com/rss/search?q=crude+oil+OPEC+WTI+Brent+when:2d&hl=en-US&gl=US&ceid=US:en"
+  newsapi_enabled: false     # requires NEWSAPI_KEY in .env
+  newsapi_query: "crude oil OR WTI OR Brent OR OPEC"
+
+eia:
+  enabled: false             # requires EIA_API_KEY in .env
+  poll_seconds: 3600
+
+social:
+  reddit_enabled: false      # requires REDDIT_CLIENT_ID / SECRET in .env
+  reddit_subreddits: ["oil", "energy", "commodities"]
+  reddit_poll_seconds: 300
+  stocktwits_enabled: false  # off by default: high noise, low signal
+  stocktwits_symbols: ["CL_F", "USOIL"]
+  stocktwits_poll_seconds: 300
+
+  # --- X / Twitter: intelligence-grade, demonstrably-early sources ---
+  # Read via Nitter RSS (keyless). If you have an official X API v2 bearer
+  # token, set X_BEARER_TOKEN in .env and it is preferred automatically.
+  x_enabled: true            # own polling thread in streaming mode
+  x_poll_seconds: 90
+  x_nitter_instances:
+    - "https://nitter.net"
+    - "https://nitter.tiekoetter.com"
+    - "https://xcancel.com"
+  # Curated for being EARLY on oil-relevant information. Rationale each:
+  x_accounts:
+    # Headline relays – mirror Bloomberg/Reuters terminal at wire speed:
+    - "DeItaone"        # Walter Bloomberg – Bloomberg terminal headlines, seconds-early
+    - "FirstSquawk"     # breaking market/macro headlines
+    - "LiveSquawk"      # breaking market/macro headlines
+    - "financialjuice"  # fast headline aggregator
+    - "ForexLive"       # fast macro/market desk
+    # Oil-specialist journalists / analysts (early + expert context):
+    - "JavierBlas"      # Bloomberg Opinion energy columnist
+    - "SStapczynski"    # Bloomberg energy reporter (Asia/oil)
+    - "staunovo"        # Giovanni Staunovo, UBS oil analyst
+    - "energyintel"     # Energy Intelligence
+    # Physical-oil intelligence – early on real supply disruptions:
+    - "TankerTrackers"  # satellite/AIS tanker & loading tracking
+    - "Vortexa"         # cargo/flows analytics
+    # Official agencies:
+    - "OPECSecretariat" # OPEC official
+    - "IEA"             # International Energy Agency
+    - "EIAgov"          # US EIA official
+    # Geopolitics / OSINT – early on conflict that moves supply:
+    - "sentdefender"    # OSINTdefender – military/geopolitics
+    - "Faytuks"         # breaking geopolitics/OSINT
+    - "WarMonitors"     # conflict OSINT
+    - "IntelCrab"       # OSINT
+    - "IranIntl_En"     # Iran International (English)
+    - "spectatorindex"  # breaking world news
+
+relevance:
+  # An item must score >= min_score to be treated as "relevant".
+  min_score: 2.0
+  # keyword (lowercased substring) -> weight. Higher = more market-moving.
+  keywords:
+    opec: 3.0
+    "opec+": 3.5
+    saudi: 2.0
+    russia: 2.0
+    iran: 2.5
+    sanction: 2.5
+    inventory: 2.5
+    stockpile: 2.0
+    drawdown: 2.5
+    draw: 1.5
+    build: 2.0
+    eia: 2.0
+    api: 1.5
+    supply: 1.5
+    demand: 1.5
+    production: 2.0
+    output: 1.8
+    war: 2.5
+    strike: 1.5
+    ceasefire: 2.5
+    hormuz: 3.0
+    pipeline: 2.0
+    refinery: 1.8
+    hurricane: 2.0
+    recession: 2.0
+    fed: 1.5
+    spr: 2.0
+
+directional_lexicon:
+  # Impact on the OIL PRICE, not generic sentiment. This matters:
+  # "war" is negative sentiment but BULLISH for oil.
+  # positive weight = bullish, negative = bearish. Range ~[-3, 3].
+  "production cut": 2.6
+  "supply cut": 2.5
+  "opec cut": 2.8
+  "output cut": 2.5
+  "unexpected draw": 2.5
+  "larger than expected draw": 2.6
+  "surprise draw": 2.4
+  "drawdown": 2.0
+  "supply disruption": 2.5
+  "outage": 2.0
+  "sanction": 2.0
+  "sanctions": 2.0
+  "embargo": 2.2
+  "attack": 2.2
+  "escalation": 2.0
+  "war": 1.8
+  "hormuz": 2.6
+  "shortage": 2.3
+  "cold snap": 1.5
+  "hurricane": 1.8
+  "demand surge": 2.0
+  "stimulus": 1.5
+  "inventory build": -2.4
+  "larger than expected build": -2.6
+  "surprise build": -2.4
+  "build": -1.8
+  "glut": -2.5
+  "oversupply": -2.4
+  "output increase": -2.2
+  "production increase": -2.2
+  "quota increase": -2.2
+  "opec+ boost": -2.4
+  "opec raises": -2.4
+  "ceasefire": -2.2
+  "peace deal": -2.0
+  "demand slump": -2.3
+  "weak demand": -2.2
+  "recession": -1.8
+  "spr release": -1.8
+  "spr sale": -1.8
+  # military / physical supply-risk (bullish for oil)
+  "air strike": 2.2
+  "airstrike": 2.2
+  "missile strike": 2.3
+  "military strike": 2.3
+  "strikes on": 2.0
+  "strikes against": 2.0
+  "launched strikes": 2.2
+  "missile": 1.8
+  "drone attack": 2.0
+  "bombing": 2.0
+  "retaliation": 1.8
+  "military action": 1.8
+  "blockade": 2.2
+  "seized tanker": 2.3
+  "halts exports": 2.4
+  "force majeure": 2.2
+  # de-escalation (bearish for oil)
+  "de-escalation": -2.0
+  "truce": -2.0
+  "talks resume": -1.6
+
+classification:
+  # Source credibility weights (0..1) used in substance vs. noise scoring.
+  # Most-specific (longest) matching key wins, so a curated X handle is scored
+  # by its own weight rather than the generic "x/" fallback.
+  source_weights:
+    "eia.gov": 1.0
+    "reuters": 1.0
+    "reutersagency.com": 1.0
+    "iea.org": 0.95
+    "opec.org": 0.95
+    "oilprice.com": 0.7
+    "rigzone.com": 0.7
+    "investing.com": 0.7
+    "newsapi": 0.65
+    # curated X intelligence handles (early + relatively reliable):
+    "opecsecretariat": 0.9   # official
+    "iea": 0.85              # official
+    "eiagov": 0.85           # official
+    "javierblas": 0.75       # expert oil columnist
+    "energyintel": 0.75
+    "tankertrackers": 0.7
+    "vortexa": 0.7
+    "sstapczynski": 0.68
+    "staunovo": 0.68
+    "deitaone": 0.65
+    "firstsquawk": 0.6
+    "livesquawk": 0.6
+    "forexlive": 0.55
+    "financialjuice": 0.55
+    "iranintl_en": 0.5
+    "sentdefender": 0.5
+    "faytuks": 0.5
+    "warmonitors": 0.45
+    "intelcrab": 0.45
+    "spectatorindex": 0.45
+    "x/": 0.3          # generic / uncurated X
+    "reddit": 0.3
+    "stocktwits": 0.2
+    "unknown": 0.4
+  corroboration_window_minutes: 90
+  confirmation_candles: 4       # candles to check price/volume confirmation
+  substance_threshold: 0.5      # >= => "substantial"
+  manipulation_threshold: 0.55  # >= => flag potential manipulation/noise
+
+llm:
+  # Optional: send only the highest-relevance headline of each story to a
+  # small, cheap Claude model for a context-aware read (direction, whether it
+  # is a concrete ACTION vs. mere talk/threat, magnitude, and a one-line
+  # Swedish rationale). Degrades silently to the keyword lexicon when disabled
+  # or on any error. Requires the `anthropic` package and ANTHROPIC_API_KEY.
+  enabled: false
+  model: "claude-haiku-4-5"     # cheap + fast; good enough for classification
+  min_relevance: 3.0            # only classify items at/above this relevance
+  timeout_seconds: 20
+
+watchdog:
+  # Self-monitoring: tracks each collector's success/failure and market-data
+  # freshness, and pushes a single de-duplicated alert when the engine's data
+  # intake degrades (plus a recovery note when it comes back). Prevents silent
+  # blind spots — a stale screen you wrongly trust is worse than a crash.
+  enabled: true
+  check_seconds: 300              # how often to evaluate health
+  consecutive_fail_alert: 3       # alert after N failures in a row for a source
+  source_stale_seconds: 600       # a source silent this long is flagged
+  market_stale_minutes: 15        # primary has no fresh candle for this long
+  min_degraded_checks: 2          # require sustained degradation before alerting
+
+alert_eval:
+  # Self-evaluation: every pushed alert makes a directional claim; the engine
+  # records the price at alert time, waits `horizon_hours`, then scores whether
+  # price actually moved that way. Produces an honest, measured track record
+  # (overall + per conviction bucket) instead of unfalsifiable opinions.
+  enabled: true
+  horizon_hours: 1.0              # how far ahead to judge the call
+  deadband_pct: 0.15             # moves smaller than this count as "no move"
+  score_seconds: 900              # how often to score matured alerts
+  scorecard_hours: 24             # push a precision scorecard this often (0=off)
+  scorecard_lookback_days: 14
+  # Optional bounded self-tuning of notifications.min_conviction. Off by
+  # default: when on, if the conviction band just above the threshold is no
+  # better than a coin flip over enough samples, the bar is raised (announced,
+  # never silent). Always clamped to [tune_floor, tune_ceiling].
+  auto_tune: false
+  tune_min_sample: 20
+  tune_floor: 30
+  tune_ceiling: 70
+  tune_step: 5
+  precision_floor: 0.45
+
+cross_asset:
+  # Distinguishes an oil-specific move from a broad macro/risk move by tracking
+  # a few liquid proxies (dollar, equities, gold via ETFs so they resolve on
+  # the same free feeds). When a fundamental oil headline's "price confirmation"
+  # is really the whole macro complex moving together, conviction is tempered
+  # and the alert says so; a genuinely oil-specific move is highlighted.
+  # Off by default (extra API calls); returns-only, so no basis/scaling issues.
+  enabled: false
+  interval: "15m"
+  lookback: "5d"
+  window_minutes: 60              # return window used to judge co-movement
+  refresh_seconds: 900
+  move_threshold_pct: 0.2         # below this, a move is treated as "flat"
+  stale_minutes: 90               # ignore a proxy whose last candle is older
+  proxies:
+    USD: "UUP"                    # dollar (typically inverse to oil)
+    Aktier: "SPY"                 # equities / risk-on-off
+    Guld: "GLD"                   # broad commodity / safe-haven bid
+
+historical:
+  # Intraday-oriented horizons (in hours): 15m, 30m, 1h, 2h, 4h.
+  horizons_hours: [0.25, 0.5, 1, 2, 4]
+  min_sample_for_stats: 5       # below this, historical confidence is "low"
+
+notifications:
+  channel: "ntfy"               # ntfy | telegram | console
+  verbosity: "compact"          # compact (short, glanceable) | full (all detail)
+  stale_after_minutes: 20       # price data older than this => no levels + warning
+  send_charts: true
+  min_notify_score: 2.5         # (batch relevance floor; conviction gate below dominates)
+  min_conviction: 40            # only push alerts at/above this conviction (0-100)
+  dedup_minutes: 90             # suppress near-duplicate notifications
+  # Collapse a running story into one alert: don't re-notify the same
+  # category+direction within this window unless conviction jumps by the delta
+  # (a genuine escalation still gets through).
+  topic_cooldown_minutes: 45
+  topic_escalation_delta: 15
+  # Quiet hours are evaluated in this timezone (DST-aware). Windows may wrap
+  # midnight. During quiet hours NO pushes go out (events, pulse, heartbeat,
+  # watchdog) — events are still collected & stored so the morning report can
+  # summarise them. The morning report itself is always delivered.
+  timezone: "Europe/Stockholm"
+  quiet_hours: ["22:00-06:00"]  # svensk natt: inga notiser 22–06
+  morning_report:
+    enabled: true
+    time: "06:00"               # local (timezone above); fires once/day at/after
+    night_hours: 9              # how far back the night recap looks
+  heartbeat_hours: 12           # periodic "still alive" ping (0 = disabled)
+  pulse_hours: 3                # periodic market-pulse digest (0 = disabled)
+  always_notify_substantial: true  # substantial events bypass min_notify_score
+  ntfy:
+    server: "https://ntfy.sh"   # public server, or your self-hosted instance
+    # Pick a long, unguessable topic (ntfy topics are public by name).
+    # Subscribe to this exact topic in the ntfy app on your phone.
+    topic: "CHANGE-ME-to-a-long-random-topic"
+    priority: "high"            # min | low | default | high | urgent
+    # Optional access token for protected topics -> put NTFY_TOKEN in .env.

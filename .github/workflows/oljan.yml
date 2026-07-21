@@ -1,0 +1,73 @@
+name: Oljan scheduled watch
+
+# FREE 24/7-ish deployment: GitHub runs this on a schedule (no server needed).
+# Each run does one full pass (news + prices + setups + morning/pulse when due)
+# and pushes Telegram alerts. Engine state (seen items, dedup, last-RSI, morning
+# and pulse timers) is carried between runs via the Actions cache, so it behaves
+# like the continuous daemon: the FIRST run primes silently (no alerts), then
+# only genuinely new events/setups/reports fire.
+#
+# Setup (one time, in the repo on GitHub):
+#   Settings -> Secrets and variables -> Actions -> New repository secret:
+#     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID   (required)
+#     TWELVEDATA_API_KEY, ALPHAVANTAGE_API_KEY   (recommended, for prices)
+#     NEWSAPI_KEY, ANTHROPIC_API_KEY   (optional)
+#   Then enable Actions (Actions tab) — done. It runs itself.
+#
+# Notes:
+#  * cron granularity is 5 min minimum and GitHub may delay runs under load,
+#    so alert latency is ~5-20 min (fine within free-tier limits).
+#  * Public repo = unlimited free Action minutes. Private repo = 2000 min/month
+#    free, so raise the interval (e.g. '*/30' or hourly) if the repo is private.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"     # every 15 minutes (UTC)
+  workflow_dispatch: {}         # allow manual "Run workflow"
+
+concurrency:
+  group: oljan-cron             # never let two runs race the state DB
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # Restore the sqlite DB (state) from the most recent previous run.
+      - name: Restore engine state
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: oljan-state-${{ github.run_id }}
+          restore-keys: |
+            oljan-state-
+
+      - name: One scheduled pass
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -m oiltrader --config config.ci.yaml --cron
+
+      # Persist the updated state for the next run (unique key; restore-keys
+      # above picks the newest). Runs even if the pass errored, so state and
+      # dedup survive transient failures.
+      - name: Save engine state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: oljan-state-${{ github.run_id }}
