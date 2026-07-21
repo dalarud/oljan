@@ -67,7 +67,9 @@ def test_consecutive_failures_alert_once_then_recovers():
     n, s = _Notifier(), _Storage()
     wd = _wd(h, n, s)
 
-    wd.evaluate()                       # transition healthy -> degraded
+    wd.evaluate()                       # 1st problem check: streak=1, no alert yet
+    assert len(n.sent) == 0
+    wd.evaluate()                       # 2nd consecutive: transition -> degraded
     assert len(n.sent) == 1
     assert "gdelt" in n.sent[0]
     assert s.get_meta("watchdog_status") == "degraded"
@@ -79,6 +81,19 @@ def test_consecutive_failures_alert_once_then_recovers():
     wd.evaluate()
     assert len(n.sent) == 2
     assert "återställd" in n.sent[1]
+    assert s.get_meta("watchdog_status") == "ok"
+
+
+def test_single_blip_does_not_flap():
+    h = SourceHealth()
+    for _ in range(3):
+        h.record_err("gdelt", "timeout")
+    n, s = _Notifier(), _Storage()
+    wd = _wd(h, n, s)
+    wd.evaluate()                       # 1 problem check
+    h.record_ok("gdelt", 1)             # blip resolved before 2nd check
+    wd.evaluate()
+    assert n.sent == []                 # never alerted on a single blip
     assert s.get_meta("watchdog_status") == "ok"
 
 

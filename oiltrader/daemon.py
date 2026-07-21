@@ -91,6 +91,12 @@ class Daemon:
         self.config_min_conviction = cfg.get("notifications.min_conviction", 40)
         self.always_notify_substantial = cfg.get(
             "notifications.always_notify_substantial", True)
+        # Collapse a running story: don't re-alert the same category+direction
+        # within this window unless conviction jumps by the escalation delta.
+        self.topic_cooldown_s = cfg.get(
+            "notifications.topic_cooldown_minutes", 45) * 60
+        self.topic_escalation_delta = cfg.get(
+            "notifications.topic_escalation_delta", 15)
         self.max_news_age_min = cfg.get("news.max_age_minutes", 360)
         self.cluster_sim = cfg.get("news.cluster_similarity", 0.4)
         self.collector_timeout = cfg.get("news.collector_timeout_seconds", 25)
@@ -515,6 +521,27 @@ class Daemon:
         except Exception:
             return None
 
+    def _topic_suppressed(self, event, conviction: int) -> bool:
+        """True if we've alerted this (category, direction) recently without a
+        meaningful escalation — collapses a running story into one alert instead
+        of re-firing every time it re-clusters. A materially higher conviction
+        (a genuine escalation) still gets through."""
+        if event.direction == "neutral":
+            return False
+        key = f"topic_last:{event.category}:{event.direction}"
+        now = time.time()
+        prev = self.storage.get_meta(key)
+        if prev:
+            try:
+                pts, pconv = prev.split(":")
+                if (now - float(pts) < self.topic_cooldown_s
+                        and conviction < float(pconv) + self.topic_escalation_delta):
+                    return True
+            except (ValueError, TypeError):
+                pass
+        self.storage.set_meta(key, f"{now}:{conviction}")
+        return False
+
     def _handle_event(self, event, chart, mtf=None) -> None:
         levels = self._key_levels(chart)
         cross = self.crossasset.snapshot()
@@ -532,6 +559,11 @@ class Daemon:
                  event.category, event.direction, analysis.conviction,
                  event.relevance, event.substance, event.manipulation,
                  event.n_sources, should_notify, event.item.title[:80])
+
+        if should_notify and self._topic_suppressed(event, analysis.conviction):
+            log.info("  -> topic-cooldown: same %s/%s recently alerted; suppressing",
+                     event.category, event.direction)
+            should_notify = False
 
         if not should_notify:
             return

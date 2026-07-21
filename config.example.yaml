@@ -349,6 +349,7 @@ watchdog:
   consecutive_fail_alert: 3       # alert after N failures in a row for a source
   source_stale_seconds: 600       # a source silent this long is flagged
   market_stale_minutes: 15        # primary has no fresh candle for this long
+  min_degraded_checks: 2          # require sustained degradation before alerting
 
 alert_eval:
   # Self-evaluation: every pushed alert makes a directional claim; the engine
@@ -403,7 +404,12 @@ notifications:
   send_charts: true
   min_notify_score: 2.5         # (batch relevance floor; conviction gate below dominates)
   min_conviction: 40            # only push alerts at/above this conviction (0-100)
-  dedup_minutes: 30             # suppress near-duplicate notifications
+  dedup_minutes: 90             # suppress near-duplicate notifications
+  # Collapse a running story into one alert: don't re-notify the same
+  # category+direction within this window unless conviction jumps by the delta
+  # (a genuine escalation still gets through).
+  topic_cooldown_minutes: 45
+  topic_escalation_delta: 15
   # Quiet hours are evaluated in this timezone (DST-aware). Windows may wrap
   # midnight. During quiet hours NO pushes go out (events, pulse, heartbeat,
   # watchdog) — events are still collected & stored so the morning report can

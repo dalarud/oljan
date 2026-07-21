@@ -87,7 +87,11 @@ class Watchdog:
         self.market_stale_min = cfg.get(
             "watchdog.market_stale_minutes", max(refresh * 3 / 60.0, 15))
         self.enabled = cfg.get("watchdog.enabled", True)
+        # Require this many consecutive problem checks before alerting, so a
+        # single transient blip (e.g. one missed Yahoo poll) doesn't flap.
+        self.min_degraded_checks = cfg.get("watchdog.min_degraded_checks", 2)
         self._degraded = False           # current alert state
+        self._problem_streak = 0
         self._started = time.monotonic()
 
     def evaluate(self) -> None:
@@ -95,18 +99,20 @@ class Watchdog:
         if not self.enabled:
             return
         problems = self._collect_problems()
-        now_degraded = bool(problems)
+        now_problem = bool(problems)
+        self._problem_streak = self._problem_streak + 1 if now_problem else 0
 
-        if now_degraded and not self._degraded:
+        # Alert only once degradation has PERSISTED, to avoid flapping on a
+        # single transient blip; recovery is reported immediately.
+        if self._problem_streak >= self.min_degraded_checks and not self._degraded:
             self._degraded = True
             self.notifier.send_ambient(self._format_alert(problems))
-        elif not now_degraded and self._degraded:
+        elif not now_problem and self._degraded:
             self._degraded = False
             self.notifier.send_ambient(
                 "✅ *Oljan återställd* – alla källor och prisdata svarar igen.")
-        # store a compact status line for heartbeats / debugging
         self.storage.set_meta("watchdog_status",
-                              "degraded" if now_degraded else "ok")
+                              "degraded" if self._degraded else "ok")
 
     # ------------------------------------------------------------- evaluation
     def _collect_problems(self) -> list[str]:
