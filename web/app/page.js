@@ -317,12 +317,26 @@ export default function Page() {
 
         <div className="ol-pricewrap">
           <div className="ol-priceline">
-            <span className="ol-price">{displayPrice != null ? Number(displayPrice).toFixed(2) : "–"}</span>
+            <span className={`ol-price${!realtime && !calibrated ? " est" : ""}`}>
+              {displayPrice != null ? Number(displayPrice).toFixed(2) : "–"}
+            </span>
             <span className="ol-trend-glyph" style={{ color: trendColor }}>{trendGlyph}</span>
+            {!realtime && !calibrated && <span className="ol-est-tag">uppskattat</span>}
           </div>
           <div className="ol-pricesub">
             <span>{live ? (realtime ? "Brent realtid (Oanda)" : "Brent BZ=F · fördröjd") : (s ? s.instrument : "laddar…")}</span>
             {live && !realtime && !liveFresh && <span className="ol-stale">· {Math.round(liveAgeMin)} min gammal</span>}
+            {!realtime && live && (
+              <span className="ol-cal-inline">
+                <span className="sep">·</span>
+                <input className="ol-cal-mini" inputMode="decimal"
+                  placeholder="ditt UKOIL"
+                  value={calInput} onChange={(e) => setCalInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") applyCalibration(); }} />
+                <button className="ol-cal-mini-btn" onClick={applyCalibration}>synka</button>
+                {calibrated && <span className="ol-cal-ok">✓ {effOffset >= 0 ? "+" : ""}{effOffset.toFixed(2)}</span>}
+              </span>
+            )}
           </div>
         </div>
 
