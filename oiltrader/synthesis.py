@@ -197,6 +197,13 @@ def format_synthesis(syn: dict, disp=lambda v: v) -> str:
     lines.append(f"Regim {syn['regime']} · {syn['driver']} · "
                  f"teknik {syn['slow_trend']}/{syn['rsi_state']} vid {syn['at_level']}")
     lines.append(f"🎯 {syn['edge']}")
+    a = syn.get("analog")
+    if a:
+        sign = "+" if a["median_pct"] >= 0 else ""
+        dirw = "hausse" if a["direction"] == "bullish" else "baisse"
+        lines.append(f"📊 Historik: {a['n']} liknande {dirw}-{a['category']} → "
+                     f"{a['hit_pct']}% i riktningen, median {sign}{a['median_pct']}% "
+                     f"({a['horizon_h']:g}h)")
     for c in syn.get("conflicts", []):
         lines.append(f"⚠️ {c}")
     return "\n".join(lines)

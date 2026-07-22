@@ -68,3 +68,20 @@ def test_format_is_telegram_safe_and_nonempty():
 
 def test_none_chart_returns_none():
     assert build_synthesis({"regime": "mixed", "bias": 0.0}, None, {}, None, []) is None
+
+
+def test_analog_line_rendered_when_present():
+    intel = {"regime": "supply-risk", "bias": 0.6, "supply_corroboration": 3}
+    syn = build_synthesis(intel, _chart(), {"5m": "up", "1h": "up"},
+                          _Levels([("PDH", 95.1)], [("VWAP", 94.45)]), [_ev()])
+    syn["analog"] = {"n": 8, "hit_pct": 62, "median_pct": 0.8,
+                     "horizon_h": 1.0, "category": "geopolitical", "direction": "bullish"}
+    txt = format_synthesis(syn)
+    assert "Historik: 8 liknande" in txt and "62% i riktningen" in txt and "+0.8%" in txt
+
+
+def test_no_analog_line_when_absent():
+    intel = {"regime": "supply-risk", "bias": 0.6, "supply_corroboration": 3}
+    syn = build_synthesis(intel, _chart(), {"5m": "up", "1h": "up"},
+                          _Levels([("PDH", 95.1)], [("VWAP", 94.45)]), [_ev()])
+    assert "Historik" not in format_synthesis(syn)  # analog is None by default
