@@ -70,22 +70,33 @@ export default function Page() {
     return () => { alive = false; clearInterval(t); };
   }, []);
 
-  // Anchor the live futures basis (raw BZ=F) to the engine's instrument basis
-  // (UKOIL). /api/price serves the unscaled Brent future (~84) while the user
-  // trades UKOIL (~92) — the same gap the engine already closes with its BNO
-  // scale factor. Re-anchor here so price, levels and the analysis chart match
-  // the TradingView chart. RSI/ATR/%-returns are scale-invariant, so this
+  // The free Yahoo BZ=F feed carries bad-tick / contract-roll gaps (e.g. a
+  // clean ~92 tape cliff-dropping to ~84 for a stretch). The engine's price
+  // (state.price, UKOIL basis) is the trusted reference. So: (1) drop candles
+  // that deviate too far from that reference — those are feed glitches, not
+  // real price — then (2) anchor the clean series to the engine basis via the
+  // last *clean* close. When the feed is clean BZ=F ≈ UKOIL, so k ≈ 1 and only
+  // glitches are removed. RSI/ATR/%-returns are scale-invariant, so anchoring
   // shifts only the displayed price level, never the signals.
+  const OUTLIER_BAND = 0.08; // |close - engine price| / engine price
   const scaledCandles = useMemo(() => {
     if (!candles || candles.length === 0) return candles;
-    const rawLast = candles[candles.length - 1].c;
-    let k = 1;
-    if (s?.price && rawLast > 0) {
-      const r = s.price / rawLast;
-      if (r > 0.6 && r < 1.7) k = r; // sanity guard against a bad tick
+    const ref = s?.price;
+    let clean = candles;
+    if (ref && ref > 0) {
+      const f = candles.filter((c) => c.c > 0 && Math.abs(c.c - ref) / ref <= OUTLIER_BAND);
+      if (f.length >= 30) clean = f; // keep the raw series if filtering is unsafe
     }
-    if (k === 1) return candles;
-    return candles.map((c) => ({
+    let k = 1;
+    if (ref && ref > 0) {
+      const lastClean = clean[clean.length - 1]?.c;
+      if (lastClean > 0) {
+        const r = ref / lastClean;
+        if (r > 0.6 && r < 1.7) k = r; // sanity guard
+      }
+    }
+    if (k === 1) return clean;
+    return clean.map((c) => ({
       t: c.t, o: c.o * k, h: c.h * k, l: c.l * k, c: c.c * k, v: c.v,
     }));
   }, [candles, s?.price]);
