@@ -71,7 +71,7 @@ export default function Page() {
         if (!alive) return;
         if (data && data.candles) {
           setCandles(data.candles);
-          setLiveMeta({ src: data.src, at: data.fetched_at });
+          setLiveMeta({ src: data.src, at: data.fetched_at, realtime: !!data.realtime });
           setErr(null);
         } else setErr(data?.error || "prisdata saknas");
       } catch (e) { if (alive) setErr(String(e)); }
@@ -114,11 +114,15 @@ export default function Page() {
   // Additive offset onto the user's UKOIL basis. Manual calibration wins; the
   // (possibly stale) engine price is only a rough fallback until the user
   // calibrates. Additive because BZ=F↔UKOIL is a roughly constant spread.
+  const realtime = !!liveMeta?.realtime;
   const effOffset = useMemo(() => {
     if (calOffset != null && isFinite(calOffset)) return calOffset;
+    // A real-time feed (Oanda Brent) is already on the right basis — trust it.
+    // Only the delayed Yahoo fallback needs the engine price as a rough anchor.
+    if (realtime) return 0;
     if (s?.price != null && rawLastClose) return s.price - rawLastClose;
     return 0;
-  }, [calOffset, s?.price, rawLastClose]);
+  }, [calOffset, realtime, s?.price, rawLastClose]);
 
   const scaledCandles = useMemo(() => {
     if (!splicedCandles || splicedCandles.length === 0) return splicedCandles;
@@ -317,8 +321,8 @@ export default function Page() {
             <span className="ol-trend-glyph" style={{ color: trendColor }}>{trendGlyph}</span>
           </div>
           <div className="ol-pricesub">
-            <span>{live ? "Brent-terminer live" : (s ? s.instrument : "laddar…")}</span>
-            {live && !liveFresh && <span className="ol-stale">· {Math.round(liveAgeMin)} min gammal</span>}
+            <span>{live ? (realtime ? "Brent realtid (Oanda)" : "Brent BZ=F · fördröjd") : (s ? s.instrument : "laddar…")}</span>
+            {live && !realtime && !liveFresh && <span className="ol-stale">· {Math.round(liveAgeMin)} min gammal</span>}
           </div>
         </div>
 
@@ -382,18 +386,18 @@ export default function Page() {
             <div className="ol-cardhead">
               <span className="ol-cardtitle">Analys · 5m-terminer med nivåer &amp; underrättelser</span>
               <span className="ol-cardsub">
-                BZ=F · svensk tid
+                {realtime ? "Oanda Brent · realtid · svensk tid" : "BZ=F · svensk tid"}
                 {liveAgeMin != null && (
-                  <span className={liveAgeMin > 20 ? "ol-stale" : ""}> · {Math.round(liveAgeMin)} min</span>
+                  <span className={!realtime && liveAgeMin > 20 ? "ol-stale" : ""}> · {Math.round(liveAgeMin)} min</span>
                 )}
               </span>
             </div>
             <div className="ol-analysisbox">
               <LiveChart candles={scaledCandles} levels={live?.levels} events={s?.events} height={300} />
             </div>
-            {liveAgeMin != null && liveAgeMin >= 8 && (
+            {!realtime && liveAgeMin != null && liveAgeMin >= 8 && (
               <p className="ol-risk-hint" style={{ paddingTop: 0 }}>
-                Yahoos gratis-feed är ~10–15 min fördröjd; TradingView-charten ovan är realtid.
+                Yahoos gratis-feed är ~10–15 min fördröjd; TradingView-charten ovan är realtid. Aktivera Oanda-feed för realtid i panelen.
               </p>
             )}
           </section>
@@ -486,7 +490,9 @@ export default function Page() {
               <div style={{ marginTop: 6 }}>
                 {calibrated
                   ? <>Kalibrerad mot din UKOIL (offset {effOffset >= 0 ? "+" : ""}{effOffset.toFixed(2)}). Justera om det glider.</>
-                  : <>⚠️ Okalibrerad — visar {s?.price ? "motorns bas (kan släpa)" : "rå BZ=F"}. Skriv priset du ser på UKOIL och tryck Kalibrera.</>}
+                  : realtime
+                    ? <>✅ Realtidsfeed aktiv (Oanda Brent). Finjustera mot din UKOIL vid behov.</>
+                    : <>⚠️ Fördröjd/okalibrerad feed — visar {s?.price ? "motorns bas (kan släpa)" : "rå BZ=F"}. Aktivera Oanda-feed för realtid, eller skriv priset du ser och tryck Kalibrera.</>}
               </div>
             </div>
           </section>
@@ -496,7 +502,7 @@ export default function Page() {
       {/* 12. SIDFOT */}
       <footer className="ol-footer">
         <span>Beslutsstöd, inte finansiell rådgivning. Handel med hävstång innebär hög risk.</span>
-        <span className="faint">Pris: BZ=F {calibrated ? "kalibrerad mot din UKOIL" : "(okalibrerad)"} · underrättelser/plan från motorn</span>
+        <span className="faint">Pris: {realtime ? "Oanda Brent realtid" : "BZ=F fördröjd"}{calibrated ? " · kalibrerad mot din UKOIL" : ""} · underrättelser/plan från motorn</span>
       </footer>
     </div>
   );
