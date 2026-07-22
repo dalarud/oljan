@@ -6,22 +6,38 @@
 import { useEffect, useRef } from "react";
 import { createChart } from "lightweight-charts";
 
+// Render candle timestamps in the trader's local wall-clock (Stockholm),
+// not UTC. Lightweight-charts defaults to UTC, which made the last bar read
+// ~2h "behind" the user's clock and TradingView (which shows local time).
+const TZ = "Europe/Stockholm";
+const hhmm = (t) => new Date(t * 1000).toLocaleTimeString("sv-SE", {
+  timeZone: TZ, hour: "2-digit", minute: "2-digit",
+});
+const full = (t) => new Date(t * 1000).toLocaleString("sv-SE", {
+  timeZone: TZ, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+});
+
 export default function LiveChart({ candles, levels, events, height = 340 }) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const priceLinesRef = useRef([]);
+  const hadDataRef = useRef(false);
 
   useEffect(() => {
     if (!boxRef.current) return;
     const chart = createChart(boxRef.current, {
       height,
-      layout: { background: { color: "#0F0F0F" }, textColor: "#9aa0aa" },
+      layout: { background: { color: "#131519" }, textColor: "#8b93a1" },
       grid: {
         vertLines: { color: "rgba(242,242,242,0.05)" },
         horzLines: { color: "rgba(242,242,242,0.05)" },
       },
-      timeScale: { timeVisible: true, secondsVisible: false, borderColor: "#2a2d33" },
+      timeScale: {
+        timeVisible: true, secondsVisible: false, borderColor: "#2a2d33",
+        tickMarkFormatter: (t) => hhmm(t),
+      },
+      localization: { timeFormatter: (t) => full(t) },
       rightPriceScale: { borderColor: "#2a2d33" },
       crosshair: { mode: 0 },
     });
@@ -44,6 +60,14 @@ export default function LiveChart({ candles, levels, events, height = 340 }) {
     series.setData(candles.map((c) => ({
       time: c.t, open: c.o, high: c.h, low: c.l, close: c.c,
     })));
+    // Always keep the newest (delayed) bar in view. On first load fit the
+    // whole series; on live updates snap to the right edge so the chart never
+    // appears "stuck" on older candles.
+    const tsc = chartRef.current?.timeScale();
+    if (tsc) {
+      if (!hadDataRef.current) { tsc.fitContent(); hadDataRef.current = true; }
+      else tsc.scrollToRealTime();
+    }
 
     // level price lines (replace on each update)
     priceLinesRef.current.forEach((pl) => { try { series.removePriceLine(pl); } catch {} });
@@ -56,7 +80,7 @@ export default function LiveChart({ candles, levels, events, height = 340 }) {
     };
     (levels?.resistance || []).forEach((r) => mk(r.v, "#ef5350", r.label));
     (levels?.support || []).forEach((s) => mk(s.v, "#26a69a", s.label));
-    if (levels?.pivot != null) mk(levels.pivot, "#e2b93b", "pivot");
+    if (levels?.pivot != null) mk(levels.pivot, "#46a2e0", "pivot");
 
     // event markers snapped to the nearest candle at/before the event
     if (events && events.length && candles.length) {

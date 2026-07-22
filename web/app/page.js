@@ -5,19 +5,17 @@ import TradingViewWidget from "../components/TradingViewWidget";
 import RiskCalc from "../components/RiskCalc";
 import ScoreViz from "../components/ScoreViz";
 import Countdown from "../components/Countdown";
-import { rsi, atr, ema, computeLevels } from "../lib/indicators";
+import { rsi, atr, ema, computeLevels, rsiBands } from "../lib/indicators";
 
 const LiveChart = dynamic(() => import("../components/LiveChart"), { ssr: false });
 
-const RSI_OB = 70, RSI_OS = 30, NEAR = 0.0035, COOLDOWN_MS = 30 * 60 * 1000;
+const NEAR = 0.0035, COOLDOWN_MS = 30 * 60 * 1000;
+// Rejection-candle gates (close position within the trigger bar's range) and
+// the short switch — mirrors the engine (setups.py). Shorts backtested to
+// negative edge on this instrument, so they are OFF: an overbought reclaim
+// surfaces as a caution, never as an actionable SÄLJ signal.
+const REJECT_LONG = 0.60, REJECT_SHORT = 0.40, ALLOW_SHORTS = false;
 
-const dirClass = (d) => (d === "bullish" ? "bull" : d === "bearish" ? "bear" : "neutral");
-const biasLabel = (d) => (d === "bullish" ? "HAUSSE" : d === "bearish" ? "BAISSE" : "NEUTRAL");
-const fmtTime = (iso) => {
-  if (!iso) return "–";
-  try { return new Date(iso).toLocaleString("sv-SE", { timeZone: "Europe/Stockholm" }); }
-  catch { return iso; }
-};
 const hhmm = (ts) => {
   if (!ts) return "";
   try {
@@ -79,6 +77,10 @@ export default function Page() {
     const trend = eFast != null && eSlow != null
       ? (eFast > eSlow * 1.0003 ? "up" : eFast < eSlow * 0.9997 ? "down" : "flat")
       : "flat";
+    const bands = rsiBands(closes);
+    const lc = candles[candles.length - 1];
+    const rng = lc.h - lc.l;
+    const closePos = rng > 0 ? (lc.c - lc.l) / rng : 0.5;
     return {
       price: closes[closes.length - 1],
       rsi: rsi(closes),
@@ -86,6 +88,9 @@ export default function Page() {
       trend,
       levels: computeLevels(candles),
       lastTs: candles[candles.length - 1].t,
+      osDyn: bands.os,
+      obDyn: bands.ob,
+      closePos,
     };
   }, [candles]);
 
@@ -110,43 +115,56 @@ export default function Page() {
     if (prev == null) return;
 
     const lv = live.levels;
+    const os = live.osDyn ?? 30, ob = live.obDyn ?? 70;
     const nearAny = (arr) =>
       (arr || []).find((x) => Math.abs(live.price - x.v) / live.price <= NEAR);
     const now = Date.now();
     let setup = null;
-    if (prev <= RSI_OS && live.rsi > RSI_OS) {
+    // Long reclaim: RSI back above the ADAPTIVE oversold line, at support, with
+    // a rejection candle (close snapping off the low). This is the edge side.
+    if (prev <= os && live.rsi > os) {
       const at = nearAny(lv?.support);
-      if (at && now - cooldownRef.current.long > COOLDOWN_MS) {
+      if (at && live.closePos >= REJECT_LONG &&
+          now - cooldownRef.current.long > COOLDOWN_MS) {
         cooldownRef.current.long = now;
         setup = { side: "KÖP", cls: "bull", at, target: lv?.pivot ?? lv?.resistance?.[0]?.v };
       }
-    } else if (prev >= RSI_OB && live.rsi < RSI_OB) {
+    } else if (prev >= ob && live.rsi < ob) {
+      // Overbought reclaim -> short. Negative edge on this instrument, so it is
+      // never an actionable signal: surface a caution and stop.
       const at = nearAny(lv?.resistance);
       if (at && now - cooldownRef.current.short > COOLDOWN_MS) {
         cooldownRef.current.short = now;
-        setup = { side: "SÄLJ", cls: "bear", at, target: lv?.pivot ?? lv?.support?.[0]?.v };
+        const downOk = ALLOW_SHORTS && live.trend === "down" &&
+          live.closePos <= REJECT_SHORT;
+        const cmsg = downOk
+          ? `⚠️ SETUP SÄLJ (försiktig) · RSI-reclaim ${Math.round(prev)}→${Math.round(live.rsi)} ` +
+            `vid ${at.label} ${at.v} · short-reversion har svag edge här – liten storlek, tajt stopp`
+          : `ℹ️ Överköpt-reclaim vid ${at.label} ${at.v}, men short-fade har negativ historisk edge på detta instrument – avstå eller vänta på riktig nedtrend + avvisning`;
+        setBanner({ side: "SÄLJ", cls: "bear", msg: cmsg, ts: now, warn: true });
       }
+      return;
     }
     if (!setup) return;
-    // Trend/regime guard: a counter-trend reversion (short in an uptrend or
-    // long in a downtrend) must present itself as a WARNING, not a signal —
-    // RSI can stay pinned in a trending, headline-driven market.
-    const counterTrend =
-      (setup.side === "SÄLJ" && live.trend === "up") ||
-      (setup.side === "KÖP" && live.trend === "down");
-    // Fresh-headline guard: recent same-direction intel = momentum, not reversion.
+    // A long in a downtrend is counter-trend: warn, don't cheer.
+    const counterTrend = live.trend === "down";
+    // Fresh-headline guard: recent opposite-direction intel = momentum, not reversion.
     const winSec = 30 * 60;
     const freshOpp = (s?.events || []).filter((e) =>
-      e.ts && e.ts > now / 1000 - winSec &&
-      ((setup.side === "SÄLJ" && e.dir === "bullish") ||
-        (setup.side === "KÖP" && e.dir === "bearish"))).length;
+      e.ts && e.ts > now / 1000 - winSec && e.dir === "bearish").length;
+    // Confluence quality, same shape as the engine.
+    let quality = 40;
+    quality += counterTrend ? 0 : 25;
+    quality += live.closePos >= 0.75 ? 20 : 10;
+    quality += freshOpp > 0 ? -25 : 10;
+    quality = Math.max(0, Math.min(100, quality));
     let prefix = "";
     if (counterTrend)
       prefix = `⚠️ MOTTREND (trend ${live.trend}${s?.regime ? `, regim ${s.regime}` : ""}) – litet/tajt eller avstå · `;
     if (freshOpp > 0)
       prefix += `⚠️ ${freshOpp} färsk motstående rubrik – momentum, fadea inte · `;
     const msg = `${prefix}SETUP ${setup.side} · RSI-reclaim ${Math.round(prev)}→${Math.round(live.rsi)} ` +
-      `vid ${setup.at.label} ${setup.at.v} · pris ${live.price.toFixed(2)}` +
+      `(OS-linje ${os.toFixed(0)}) vid ${setup.at.label} ${setup.at.v} · pris ${live.price.toFixed(2)} · kvalitet ${quality}/100` +
       (setup.target ? ` · mål ${Number(setup.target).toFixed(2)}` : "");
     setBanner({ ...setup, msg, ts: now, warn: counterTrend || freshOpp > 0 });
     if (alertsOn) {
@@ -203,133 +221,222 @@ export default function Page() {
   const sym = (s && s.tv_symbol) || "TVC:UKOIL";
   const displayPrice = live ? live.price : s?.price;
   const displayRsi = live?.rsi != null ? Math.round(live.rsi) : s?.rsi;
+  const displayAtr = live?.atr != null ? live.atr.toFixed(2) : "—";
+
+  const trendGlyph = live ? (live.trend === "up" ? "↑" : live.trend === "down" ? "↓" : "→") : "→";
+  const trendColor = live?.trend === "up" ? "var(--green)"
+    : live?.trend === "down" ? "var(--red)" : "var(--gray)";
+  const biasTxt = s?.bias === "bullish" ? "Hausse" : s?.bias === "bearish" ? "Baisse" : "Neutral";
+  const biasColor = s?.bias === "bullish" ? "var(--green)"
+    : s?.bias === "bearish" ? "var(--red)" : "var(--gray)";
+  const mtfTxt = s?.trend && Object.keys(s.trend).length
+    ? Object.entries(s.trend).map(([k, v]) =>
+        `${k} ${v === "up" ? "↑" : v === "down" ? "↓" : "→"}`).join(" · ")
+    : null;
+
+  const bannerCls = banner ? (banner.warn ? "warn" : banner.cls === "bear" ? "bear" : "bull") : "";
+  const qMatch = banner?.msg?.match(/kvalitet\s*(\d+)\s*\/\s*100/i);
+  const qualityScore = qMatch ? qMatch[1] : null;
+  const updatedAgo = s?.updated_at
+    ? `uppdaterad för ${Math.max(1, Math.round((Date.now() - new Date(s.updated_at).getTime()) / 60000))} min sedan`
+    : "väntar på motorn…";
 
   return (
-    <div className="wrap">
-      <div className="topbar">
-        <span className="brand">🛢️ Oljan</span>
-        <div>
-          <div className="price">{displayPrice != null ? Number(displayPrice).toFixed(2) : "–"}</div>
-          <div className="sub">
-            {live ? <>Brent-terminer live{liveFresh ? "" : <span className="stale"> · {Math.round(liveAgeMin)}m gammal</span>}</>
-              : (s ? s.instrument : "laddar…")}
-            {displayRsi != null ? ` · RSI ${displayRsi}` : ""}
-            {live?.atr != null ? ` · ATR ${live.atr.toFixed(2)}` : ""}
-            {live?.trend ? ` · trend ${live.trend === "up" ? "↑" : live.trend === "down" ? "↓" : "→"}` : ""}
+    <div className="ol-root">
+      {/* 1. TOPPRAD */}
+      <header className="ol-header">
+        <div className="ol-brand">
+          <span className="ol-mark" />
+          <span className="ol-wordmark">Oljan</span>
+          <span className="ol-livedot" />
+        </div>
+
+        <div className="ol-pricewrap">
+          <div className="ol-priceline">
+            <span className="ol-price">{displayPrice != null ? Number(displayPrice).toFixed(2) : "–"}</span>
+            <span className="ol-trend-glyph" style={{ color: trendColor }}>{trendGlyph}</span>
+          </div>
+          <div className="ol-pricesub">
+            <span>{live ? "Brent-terminer live" : (s ? s.instrument : "laddar…")}</span>
+            {live && !liveFresh && <span className="ol-stale">· {Math.round(liveAgeMin)} min gammal</span>}
           </div>
         </div>
-        {s && <span className={`pill ${dirClass(s.bias)}`}>{biasLabel(s.bias)}</span>}
-        {s?.regime && <span className="pill warn">regim: {s.regime}</span>}
-        {s?.trend && Object.keys(s.trend).length > 0 && (
-          <span className="pill neutral">
-            MTF {Object.entries(s.trend).map(([k, v]) =>
-              `${k} ${v === "up" ? "↑" : v === "down" ? "↓" : "→"}`).join(" · ")}
-          </span>
-        )}
-        <span className="spacer" />
-        {!alertsOn
-          ? <button className="btn" onClick={enableAlerts}>🔔 Aktivera larm</button>
-          : <span className="pill bull">🔔 larm på</span>}
-        <span className="sub">motorn: {fmtTime(s && s.updated_at)}</span>
-      </div>
 
+        <div className="ol-metrics">
+          <div className="ol-metric"><span className="ol-metric-label">RSI</span><span className="ol-metric-val">{displayRsi ?? "—"}</span></div>
+          <div className="ol-metric"><span className="ol-metric-label">ATR</span><span className="ol-metric-val">{displayAtr}</span></div>
+          <div className="ol-metric"><span className="ol-metric-label">Trend</span><span className="ol-metric-val" style={{ color: trendColor }}>{trendGlyph}</span></div>
+        </div>
+
+        <div className="ol-chips">
+          {s && <span className="ol-chip" style={{ color: biasColor }}>
+            <span className="ol-chip-dot" style={{ background: biasColor }} />{biasTxt}</span>}
+          {s?.regime && <span className="ol-chip">
+            <span className="ol-chip-dot" style={{ background: "var(--accent)" }} />{s.regime}</span>}
+          {mtfTxt && <span className="ol-chip">
+            <span className="ol-chip-dot" style={{ background: "var(--text-faint)" }} />{mtfTxt}</span>}
+        </div>
+
+        <div className="ol-alarm-wrap">
+          <button className={`ol-alarm-btn${alertsOn ? " on" : ""}`}
+            onClick={alertsOn ? () => setAlertsOn(false) : enableAlerts}>
+            {alertsOn ? "🔔 Larm på" : "🔔 Aktivera larm"}
+          </button>
+          <span className="ol-motor">Motor {updatedAgo}</span>
+        </div>
+      </header>
+
+      {/* 2. SIGNALBANNER */}
       {banner && (
-        <div className={`setupbanner ${banner.cls}`}>
-          <strong>⚡ {banner.msg}</strong>
-          <span className="sub"> · fade aldrig in i en färsk rubrik — kolla flödet nedan</span>
-          <button className="btn ghost" onClick={() => setBanner(null)}>✕</button>
+        <div className={`ol-banner ${bannerCls}`}>
+          <div className="ol-banner-left">
+            <span className="ol-banner-badge">{banner.side}</span>
+            <span className="ol-banner-msg">{banner.msg}</span>
+            {qualityScore && <span className="ol-quality">Kvalitet {qualityScore}/100</span>}
+          </div>
+          <div className="ol-banner-right">
+            {banner.warn && <span className="ol-banner-warntext">Fadea inte utan reclaim</span>}
+            <button className="ol-banner-close" onClick={() => setBanner(null)} aria-label="Stäng">✕</button>
+          </div>
         </div>
       )}
       {err && !candles && (
-        <div className="card err" style={{ marginBottom: 14 }}>
-          Live-pris ej tillgängligt just nu ({err}) — visar motorns senaste data.
-        </div>
+        <div className="ol-err">Live-pris ej tillgängligt just nu ({err}) — visar motorns senaste data.</div>
       )}
 
-      <div className="grid">
-        <div className="chart"><TradingViewWidget symbol={sym} /></div>
+      {/* MAIN */}
+      <main className="ol-main">
+        <div className="ol-maincol">
 
-        <div className="side">
+          {/* 3. TRADINGVIEW */}
+          <section className="ol-card">
+            <div className="ol-cardhead">
+              <span className="ol-cardtitle">UKOIL · TradingView</span>
+              <span className="ol-cardsub">{sym}</span>
+            </div>
+            <div className="ol-tvbox"><TradingViewWidget symbol={sym} /></div>
+          </section>
+
+          {/* 6. ANALYS-CHART */}
+          <section className="ol-card">
+            <div className="ol-cardhead">
+              <span className="ol-cardtitle">Analys · 5m-terminer med nivåer &amp; underrättelser</span>
+              <span className="ol-cardsub">
+                BZ=F · svensk tid
+                {liveAgeMin != null && (
+                  <span className={liveAgeMin > 20 ? "ol-stale" : ""}> · {Math.round(liveAgeMin)} min</span>
+                )}
+              </span>
+            </div>
+            <div className="ol-analysisbox">
+              <LiveChart candles={candles} levels={live?.levels} events={s?.events} height={300} />
+            </div>
+            {liveAgeMin != null && liveAgeMin >= 8 && (
+              <p className="ol-risk-hint" style={{ paddingTop: 0 }}>
+                Yahoos gratis-feed är ~10–15 min fördröjd; TradingView-charten ovan är realtid.
+              </p>
+            )}
+          </section>
+
+          {/* 7. DAGENS PLAN */}
+          <section className="ol-card">
+            <div className="ol-cardhead"><span className="ol-cardtitle">Dagens plan</span></div>
+            {s?.plan?.length ? (
+              <ul className="ol-plan">{s.plan.map((l, i) => <li key={i}>{l.replace(/\*/g, "")}</li>)}</ul>
+            ) : <div className="ol-empty">–</div>}
+          </section>
+
+          {/* 8. RISKKALKYLATOR */}
+          <RiskCalc price={live?.price} atrVal={live?.atr} leverage={10}
+            target={live?.levels?.resistance?.[0]?.v} />
+
+          {/* 9. UNDERRÄTTELSEFLÖDE */}
+          <section className="ol-card">
+            <div className="ol-cardhead">
+              <span className="ol-cardtitle">Underrättelseflöde</span>
+              <span className="ol-cardsub">Senaste 24h</span>
+            </div>
+            {s?.events?.length > 0 ? (
+              <div className="ol-news">
+                {s.events.map((e, i) => (
+                  <a className="ol-news-row" key={i} href={e.url || "#"}
+                    target={e.url ? "_blank" : undefined} rel="noopener noreferrer">
+                    <span className="ol-news-dot" style={{ background: dirColorVar(e.dir) }} />
+                    <span className="ol-news-body">
+                      <span className="ol-news-title">{e.title}</span>
+                      <span className="ol-news-meta">{hhmm(e.ts)} · {e.cat} · relevans {e.rel} · substans {e.sub}</span>
+                    </span>
+                  </a>
+                ))}
+              </div>
+            ) : <div className="ol-empty">Inga relevanta händelser i fönstret.</div>}
+          </section>
+
+          {/* 10. MARKNADSPULS */}
+          <section className="ol-card">
+            <div className="ol-cardhead"><span className="ol-cardtitle">Marknadspuls</span></div>
+            <p className="ol-pulse">{s?.pulse ? s.pulse.replace(/\*/g, "") : "–"}</p>
+          </section>
+
+          {/* 11. TRÄFFSÄKERHET */}
+          <ScoreViz alerts={s?.alerts} fallbackText={s?.scorecard} />
+        </div>
+
+        {/* SIDOPANEL */}
+        <div className="ol-sidecol">
           <Countdown />
-          <div className="card">
-            <h3>Nyckelnivåer (live, riktig data)</h3>
+
+          {/* 5. NYCKELNIVÅER */}
+          <section className="ol-card">
+            <div className="ol-cardhead"><span className="ol-cardtitle">Nyckelnivåer</span></div>
             {live?.levels ? (
-              <>
+              <div className="ol-levels">
                 {live.levels.resistance.map((r, i) => (
-                  <div className="levelrow" key={"r" + i}>
-                    <span className="lvl-res">▲ {r.label}</span><span>{r.v.toFixed(2)}</span>
+                  <div className="ol-level-row" key={"r" + i}>
+                    <span className="ol-level-glyph res">▲</span>
+                    <span className="ol-level-label">{r.label}</span>
+                    <span className="ol-level-price">{r.v.toFixed(2)}</span>
                   </div>
                 ))}
                 {live.levels.pivot != null && (
-                  <div className="levelrow">
-                    <span className="lvl-piv">◆ pivot/VWAP</span><span>{live.levels.pivot.toFixed(2)}</span>
+                  <div className="ol-pivot-row">
+                    <span className="ol-level-glyph piv">◆</span>
+                    <span className="ol-level-label">Pivot / VWAP</span>
+                    <span className="ol-level-price">{live.levels.pivot.toFixed(2)}</span>
                   </div>
                 )}
                 {live.levels.support.map((r, i) => (
-                  <div className="levelrow" key={"s" + i}>
-                    <span className="lvl-sup">▼ {r.label}</span><span>{r.v.toFixed(2)}</span>
+                  <div className="ol-level-row" key={"s" + i}>
+                    <span className="ol-level-glyph sup">▼</span>
+                    <span className="ol-level-label">{r.label}</span>
+                    <span className="ol-level-price">{r.v.toFixed(2)}</span>
                   </div>
                 ))}
-              </>
-            ) : <div className="sub">Väntar på live-data…</div>}
+              </div>
+            ) : <div className="ol-empty">Väntar på live-data…</div>}
             {calib && calib.isScaled && (
-              <div className="sub" style={{ marginTop: 8 }}>
-                Motorns bas avviker {calib.drift >= 0 ? "+" : ""}{calib.drift.toFixed(2)}%
+              <p className="ol-calib">
+                Kalibrering: motorns bas avviker {calib.drift >= 0 ? "+" : ""}{calib.drift.toFixed(2)}% från live
                 {Math.abs(calib.drift) > 0.4 && calib.suggested
-                  ? <> → föreslagen ny faktor <code>{calib.suggested.toFixed(6)}</code></>
-                  : " (inom tolerans)"}
-              </div>
+                  ? <> — föreslagen skalfaktor <code>{calib.suggested.toFixed(6)}</code>.</>
+                  : " (inom tolerans)."}
+              </p>
             )}
-          </div>
+          </section>
         </div>
+      </main>
 
-        <div className="card full">
-          <h3>Analys-chart: nivåer + underrättelser på tidslinjen</h3>
-          <LiveChart candles={candles} levels={live?.levels}
-            events={s?.events} height={340} />
-          <div className="sub" style={{ marginTop: 6 }}>
-            Riktiga Brent-terminer (5m) · linjer = beräknade nivåer · pilar = underrättelser (grön hausse / röd baisse).
-          </div>
-        </div>
-
-        <div className="card">
-          <h3>Dagens plan (motorn)</h3>
-          {s?.plan ? (
-            <ul className="plan">{s.plan.map((l, i) => <li key={i}>{l.replace(/\*/g, "")}</li>)}</ul>
-          ) : <div className="sub">–</div>}
-        </div>
-
-        <RiskCalc price={live?.price} atrVal={live?.atr} leverage={10}
-          target={live?.levels?.resistance?.[0]?.v} />
-
-        <div className="card full">
-          <h3>Underrättelseflöde (senaste 24h)</h3>
-          {s?.events?.length > 0 ? s.events.map((e, i) => (
-            <div className="ev" key={i}>
-              <div className="t"><span className={`dot ${dirClass(e.dir)}`} />
-                {e.url ? <a href={e.url} target="_blank" rel="noopener noreferrer">{e.title}</a> : e.title}
-              </div>
-              <div className="m">{hhmm(e.ts)} · {e.cat} · rel {e.rel} · substans {e.sub}</div>
-            </div>
-          )) : <div className="sub">Inga relevanta händelser i fönstret.</div>}
-        </div>
-
-        <div className="card">
-          <h3>Marknadspuls</h3>
-          <p className="pre">{s?.pulse ? s.pulse.replace(/\*/g, "") : "–"}</p>
-        </div>
-
-        <ScoreViz alerts={s?.alerts} fallbackText={s?.scorecard} />
-      </div>
-
-      <div className="foot">
-        Oljan · beslutsstöd, ej finansiell rådgivning · chart av TradingView ·
-        live-pris = riktiga Brent-terminer via proxy · nivåer beräknade på riktig data ·
-        underrättelser/plan från motorn.
-      </div>
+      {/* 12. SIDFOT */}
+      <footer className="ol-footer">
+        <span>Beslutsstöd, inte finansiell rådgivning. Handel med hävstång innebär hög risk.</span>
+        <span className="faint">Källor: pris via {s?.price_source || "yahoo"} · nivåer &amp; signaler beräknade av motorn</span>
+      </footer>
     </div>
   );
 }
+
+const dirColorVar = (d) =>
+  d === "bullish" ? "var(--green)" : d === "bearish" ? "var(--red)" : "var(--gray)";
 
 function beep(ctx) {
   if (!ctx) return;

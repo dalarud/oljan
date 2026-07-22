@@ -28,43 +28,56 @@ export default function RiskCalc({ price, atrVal, leverage = 10, target }) {
   const rr = tgt && dist > 0 ? Math.abs(tgt - e) / dist : null;
 
   const warn = atrMult != null && atrMult < 1;
+  const ready = dist > 0;
+
+  const field = (label, val, set, ph, step) => (
+    <label className="ol-input-label">{label}
+      <input className="ol-input" type="number" step={step} value={val}
+        placeholder={ph} inputMode="decimal"
+        onChange={(x) => set(x.target.value)} />
+    </label>
+  );
+  const row = (label, value, cls) => (
+    <div className="ol-result-row">
+      <span className="ol-result-label">{label}</span>
+      <span className={`ol-result-val${cls ? " " + cls : ""}`}>{value}</span>
+    </div>
+  );
 
   return (
-    <div className="card">
-      <h3>Risk & position (x{L})</h3>
-      <div className="calcgrid">
-        <label>Entry <input value={entry} onChange={(x) => setEntry(x.target.value)}
-          placeholder={price ? price.toFixed(2) : "—"} inputMode="decimal" /></label>
-        <label>Stop <input value={stop} onChange={(x) => setStop(x.target.value)}
-          placeholder="t.ex. 91.80" inputMode="decimal" /></label>
-        <label>Konto <input value={account} onChange={(x) => setAccount(x.target.value)}
-          placeholder="t.ex. 10000" inputMode="decimal" /></label>
-        <label>Risk % <input value={riskPct} onChange={(x) => setRiskPct(x.target.value)}
-          inputMode="decimal" /></label>
-        <label>Hävstång <input value={lev} onChange={(x) => setLev(x.target.value)}
-          inputMode="decimal" /></label>
+    <section className="ol-card">
+      <div className="ol-cardhead">
+        <span className="ol-cardtitle">Riskkalkylator</span>
+        <span className="ol-cardsub">Beräknas lokalt · x{L}</span>
       </div>
-      {dist > 0 ? (
-        <div style={{ marginTop: 10 }}>
-          <div className="levelrow"><span>Stoppavstånd</span>
-            <span>{dist.toFixed(2)} ({movePct.toFixed(2)} %{atrMult != null ? ` · ${atrMult.toFixed(1)} ATR` : ""})</span></div>
-          <div className="levelrow"><span>Marginalpåverkan vid stopp</span>
-            <span className={marginPct > 15 ? "lvl-res" : ""}>{marginPct.toFixed(1)} %</span></div>
-          {acc > 0 && (<>
-            <div className="levelrow"><span>Storlek för {rp}% kontorisk</span>
-              <span>{units.toFixed(1)} enheter (~{notional.toFixed(0)})</span></div>
-            <div className="levelrow"><span>Marginalkrav</span><span>~{margin.toFixed(0)}</span></div>
-          </>)}
-          {rr != null && (
-            <div className="levelrow"><span>R/R mot närmaste mål {tgt.toFixed(2)}</span>
-              <span className={rr < 1 ? "lvl-res" : "lvl-sup"}>{rr.toFixed(2)}</span></div>
-          )}
-          {warn && <div className="sub stale" style={{ marginTop: 6 }}>
-            ⚠️ Stopp &lt; 1 ATR — inom bruset, hög risk att stoppas ur på slump.</div>}
+      <div className="ol-risk">
+        <div className="ol-risk-inputs">
+          {field("Entry", entry, setEntry, price ? price.toFixed(2) : "—", "0.01")}
+          {field("Stopp", stop, setStop, "t.ex. 91.80", "0.01")}
+          {field("Konto (USD)", account, setAccount, "t.ex. 10000", "100")}
+          {field("Risk %", riskPct, setRiskPct, "1", "0.1")}
+          {field("Hävstång", lev, setLev, "10", "1")}
         </div>
-      ) : (
-        <div className="sub" style={{ marginTop: 8 }}>Fyll i entry + stop.</div>
-      )}
-    </div>
+        <div className="ol-risk-results">
+          {ready ? (
+            <>
+              {row("Avstånd (ATR)", atrMult != null ? `${atrMult.toFixed(2)}×` : "—", warn ? "bad" : "")}
+              {row("Stoppavstånd", `${dist.toFixed(2)} (${movePct.toFixed(2)} %)`)}
+              {row("Marginalpåverkan", `${marginPct.toFixed(1)} %`, marginPct > 15 ? "bad" : "")}
+              {acc > 0 && row("Positionsstorlek", `${units.toFixed(1)} enh · $${notional.toFixed(0)}`)}
+              {acc > 0 && row("Marginalkrav", `$${margin.toFixed(0)}`)}
+              {rr != null && row(`Risk/Reward → ${tgt.toFixed(2)}`, `${rr.toFixed(2)} : 1`, rr >= 1 ? "good" : "bad")}
+              {warn && (
+                <div className="ol-risk-warn">
+                  Stoppen är tajtare än 1 ATR — förhöjd risk för brus-stopp.
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="ol-result-label">Fyll i entry + stopp för att räkna.</div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

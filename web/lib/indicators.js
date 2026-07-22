@@ -18,6 +18,38 @@ export function rsi(closes, period = 14) {
   return 100 - 100 / (1 + ag / al);
 }
 
+// Full RSI series (Wilder) — needed for adaptive thresholds.
+export function rsiSeries(closes, period = 14) {
+  if (!closes || closes.length < period + 1) return [];
+  const out = new Array(period).fill(null);
+  let gain = 0, loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d > 0) gain += d; else loss -= d;
+  }
+  let ag = gain / period, al = loss / period;
+  out.push(al === 0 ? 100 : 100 - 100 / (1 + ag / al));
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    ag = (ag * (period - 1) + Math.max(d, 0)) / period;
+    al = (al * (period - 1) + Math.max(-d, 0)) / period;
+    out.push(al === 0 ? 100 : 100 - 100 / (1 + ag / al));
+  }
+  return out;
+}
+
+// Adaptive oversold/overbought lines from the recent RSI distribution — the
+// same rule as the engine (backtest.py): a fixed 30/70 only ever fires
+// counter-trend in a trending tape, which lost money. Clamped to sane bands.
+export function rsiBands(closes, period = 14) {
+  const ser = rsiSeries(closes, period).filter((x) => x != null);
+  if (ser.length < 50) return { os: 30, ob: 70 };
+  const recent = ser.slice(-200).sort((a, b) => a - b);
+  const q = (p) => recent[Math.min(recent.length - 1, Math.floor(p * recent.length))];
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  return { os: clamp(q(0.20), 25, 45), ob: clamp(q(0.80), 55, 75) };
+}
+
 export function ema(closes, period) {
   if (!closes || closes.length < period) return null;
   const k = 2 / (period + 1);
