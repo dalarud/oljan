@@ -19,12 +19,11 @@ market_data:
     BZ=F: BNO
     CL=F: USO
   twelvedata_scale_to_benchmark: true
-  # (scale_override calibrated once; on CI Yahoo usually gives real BZ=F directly)
-  # (TradingView UKOIL = 88.43 vs raw BNO 49.32 on 2026-07-21). Overrides the
-  # stale free daily anchor so price + levels sit on the real UKOIL level.
-  # Recalibrate if the displayed price drifts from your screen.
+  # Manual ETF->benchmark calibration (recalibrate when it drifts from your
+  # screen): factor = your_UKOIL / raw_BNO_close.
+  # Last: TradingView UKOIL 92.21 vs raw BNO 50.56 on 2026-07-22.
   scale_override:
-    BZ=F: 1.792985
+    BZ=F: 1.823774
   timeframes:
   - interval: 5m
     lookback: 10d
