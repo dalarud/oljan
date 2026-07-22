@@ -15,11 +15,12 @@ class _St:
         self.m[k] = v
 
 
-def _stub(cooldown_s=2700, delta=15):
+def _stub(cooldown_s=2700, delta=15, price_esc=0.7):
     s = SimpleNamespace()
     s.storage = _St()
     s.topic_cooldown_s = cooldown_s
     s.topic_escalation_delta = delta
+    s.topic_price_esc_pct = price_esc
     return s
 
 
@@ -56,3 +57,16 @@ def test_zero_window_never_suppresses():
     s = _stub(cooldown_s=0)
     Daemon._topic_suppressed(s, _ev(), 52)
     assert Daemon._topic_suppressed(s, _ev(), 52) is False
+
+
+def test_price_escalation_breaks_through_cooldown():
+    s = _stub()
+    assert Daemon._topic_suppressed(s, _ev(), 52, price=90.00) is False
+    # same conviction, same window, but price ran +1% -> new information
+    assert Daemon._topic_suppressed(s, _ev(), 52, price=90.95) is False
+
+
+def test_small_price_move_still_suppressed():
+    s = _stub()
+    Daemon._topic_suppressed(s, _ev(), 52, price=90.00)
+    assert Daemon._topic_suppressed(s, _ev(), 52, price=90.20) is True  # +0.22%
