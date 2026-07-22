@@ -56,8 +56,21 @@ input[type=number]::-webkit-inner-spin-button { opacity: 0.5; }
 .ol-price { font: 700 40px/1 var(--mono); letter-spacing: -0.01em; color: oklch(0.97 0.004 250); }
 .ol-trend-glyph { font: 600 22px/1 var(--sans); }
 .ol-pricesub { font: 500 12px/1.3 var(--sans); color: var(--text-sub);
-  display: flex; gap: 8px; flex-wrap: wrap; }
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .ol-stale { color: var(--amber); }
+.ol-price.est { color: var(--amber); }
+.ol-est-tag { font: 600 9px/1 var(--sans); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--amber); border: 1px solid var(--amber); border-radius: 2px; padding: 3px 5px;
+  align-self: center; }
+.ol-cal-inline { display: inline-flex; align-items: center; gap: 6px; }
+.ol-cal-inline .sep { color: var(--text-faint); }
+.ol-cal-mini { width: 72px; background: transparent; border: 1px solid var(--hairline);
+  border-radius: 2px; padding: 3px 6px; color: var(--text); font: 500 12px var(--mono); outline: none; }
+.ol-cal-mini:focus { border-color: var(--accent); }
+.ol-cal-mini-btn { font: 600 9.5px/1 var(--sans); letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 5px 8px; border-radius: 2px; cursor: pointer; background: var(--accent); color: var(--ink);
+  border: 1px solid var(--accent); }
+.ol-cal-ok { color: var(--green); font: 600 11px/1 var(--mono); }
 
 .ol-metrics { display: flex; gap: 8px; flex-wrap: wrap; }
 .ol-metric { display: flex; flex-direction: column; gap: 3px;
