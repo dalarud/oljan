@@ -23,6 +23,22 @@ const hhmm = (ts) => {
       { timeZone: "Europe/Stockholm", hour: "2-digit", minute: "2-digit" });
   } catch { return ""; }
 };
+const timeAgo = (ts) => {
+  if (!ts) return "";
+  const m = Math.max(0, Math.round(Date.now() / 1000 / 60 - ts / 60));
+  if (m < 1) return "nyss";
+  if (m < 60) return `${m} min sedan`;
+  const h = Math.floor(m / 60);
+  return `${h} tim sedan`;
+};
+const dirWord = (d) => (d === "bullish" ? "hausse" : d === "bearish" ? "baisse" : "neutral");
+// Relevance bucket from the engine's own ranking score (relevance × substance).
+const relBucket = (rel, sub) => {
+  const score = (Number(rel) || 0) * Math.max(Number(sub) || 0, 0.15);
+  if (score >= 2.0) return { label: "HÖG", cls: "hog", score };
+  if (score >= 1.0) return { label: "MEDEL", cls: "medel", score };
+  return { label: "LÅG", cls: "lag", score };
+};
 
 export default function Page() {
   const [s, setS] = useState(null);          // engine state.json
@@ -31,6 +47,7 @@ export default function Page() {
   const [err, setErr] = useState(null);
   const [alertsOn, setAlertsOn] = useState(false);
   const [banner, setBanner] = useState(null);
+  const [newsSort, setNewsSort] = useState("rel"); // "rel" | "tid"
   const prevRsiRef = useRef(null);
   const cooldownRef = useRef({ long: 0, short: 0 });
   const audioRef = useRef(null);
@@ -432,20 +449,32 @@ export default function Page() {
           <section className="ol-card">
             <div className="ol-cardhead">
               <span className="ol-cardtitle">Underrättelseflöde</span>
-              <span className="ol-cardsub">Senaste 24h</span>
+              <span className="ol-news-sort">
+                <button className={newsSort === "rel" ? "on" : ""} onClick={() => setNewsSort("rel")}>Relevans</button>
+                <button className={newsSort === "tid" ? "on" : ""} onClick={() => setNewsSort("tid")}>Tid</button>
+              </span>
             </div>
             {s?.events?.length > 0 ? (
               <div className="ol-news">
-                {s.events.map((e, i) => (
-                  <a className="ol-news-row" key={i} href={e.url || "#"}
-                    target={e.url ? "_blank" : undefined} rel="noopener noreferrer">
-                    <span className="ol-news-dot" style={{ background: dirColorVar(e.dir) }} />
-                    <span className="ol-news-body">
-                      <span className="ol-news-title">{e.title}</span>
-                      <span className="ol-news-meta">{hhmm(e.ts)} · {e.cat} · relevans {e.rel} · substans {e.sub}</span>
-                    </span>
-                  </a>
-                ))}
+                {[...s.events]
+                  .map((e) => ({ e, b: relBucket(e.rel, e.sub) }))
+                  .sort((a, b) => newsSort === "tid"
+                    ? (b.e.ts || 0) - (a.e.ts || 0)
+                    : b.b.score - a.b.score)
+                  .map(({ e, b }, i) => (
+                    <a className={`ol-news-row rel-${b.cls}`} key={i} href={e.url || "#"}
+                      target={e.url ? "_blank" : undefined} rel="noopener noreferrer"
+                      style={{ borderLeft: `3px solid ${dirColorVar(e.dir)}` }}>
+                      <span className={`ol-news-rel ${b.cls}`}>{b.label}</span>
+                      <span className="ol-news-body">
+                        <span className="ol-news-title">{e.title}</span>
+                        <span className="ol-news-meta">
+                          <span style={{ color: dirColorVar(e.dir) }}>{dirWord(e.dir)}</span>
+                          {" · "}{timeAgo(e.ts)}{" · "}{e.cat}
+                        </span>
+                      </span>
+                    </a>
+                  ))}
               </div>
             ) : <div className="ol-empty">Inga relevanta händelser i fönstret.</div>}
           </section>
