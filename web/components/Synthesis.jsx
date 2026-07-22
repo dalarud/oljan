@@ -41,6 +41,10 @@ export default function Synthesis({ syn }) {
 
       <div className="ol-syn-edge">🎯 {syn.edge}</div>
 
+      {syn.analog && (
+        <div className="ol-syn-analog">📊 Historik: {syn.analog.text}</div>
+      )}
+
       {syn.conflicts?.length > 0 && (
         <div className="ol-syn-conflicts">
           {syn.conflicts.map((c, i) => <div key={i}>⚠️ {c}</div>)}

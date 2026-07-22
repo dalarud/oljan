@@ -324,6 +324,10 @@ class Daemon:
                                  chart.trend if chart else None, name),
             "scorecard": self.evaluator.scorecard(14),
             "alerts": alerts,
+            # Event-study prior for the dominant driver (null until the engine
+            # has enough matured analogous outcomes). The web Syntes card and
+            # the Telegram synthesis both surface this when present.
+            "analog": self._analog_for(evs),
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(state, f, ensure_ascii=False, indent=2)
@@ -515,15 +519,8 @@ class Daemon:
         # Enrich the push with the fused technical+fundamental synthesis so the
         # alert is a complete decision aid, not just the raw trigger.
         try:
-            from datetime import timedelta as _td
-            from .playbook import classify_intel
-            from .synthesis import build_synthesis, format_synthesis
-            evs = [e for e in self.storage.recent_events(
-                       datetime.now(timezone.utc) - _td(hours=24))
-                   if e.get("source") not in ("seed", None)]
-            syn = build_synthesis(classify_intel(evs), chart,
-                                  self._mtf_trends(self.primary), levels, evs)
-            block = format_synthesis(syn)
+            from .synthesis import format_synthesis
+            block = format_synthesis(self._build_synthesis(chart, levels))
             if block:
                 msg = msg + "\n\n" + block
         except Exception:
@@ -533,6 +530,53 @@ class Daemon:
             log.info("SETUP %s fired (%s) rsi %.0f->%.0f conf=%s",
                      setup.side, setup.kind, setup.rsi_prev, setup.rsi_now,
                      setup.confidence)
+
+    def _build_synthesis(self, chart, levels):
+        """Fused technical+fundamental read + historical analog probability.
+
+        Single source used by setup alerts, the market pulse and the dashboard
+        export so the same conclusion appears everywhere.
+        """
+        from datetime import timedelta as _td
+        from .playbook import classify_intel
+        from .synthesis import build_synthesis
+        evs = [e for e in self.storage.recent_events(
+                   datetime.now(timezone.utc) - _td(hours=24))
+               if e.get("source") not in ("seed", None)]
+        syn = build_synthesis(classify_intel(evs), chart,
+                              self._mtf_trends(self.primary), levels, evs)
+        if syn is not None:
+            syn["analog"] = self._analog_for(evs)
+        return syn
+
+    def _analog_for(self, evs):
+        """Event-study prior for the dominant recent driver: what price did
+        after analogous past events, at the horizon nearest 1h. Only returned
+        once enough matured samples exist (else None → 'building history')."""
+        def score(e):
+            return float(e.get("relevance") or 0) * max(
+                float(e.get("substance") or 0), 0.15)
+        cand = [e for e in evs if e.get("direction") in ("bullish", "bearish")
+                and e.get("category")]
+        if not cand:
+            return None
+        top = max(cand, key=score)
+        try:
+            rep = self.historical.analog_report(top["category"], top["direction"])
+        except Exception:
+            return None
+        best = None
+        for st in rep.stats:
+            if st.n <= 0:
+                continue
+            if best is None or abs(st.horizon_h - 1.0) < abs(best.horizon_h - 1.0):
+                best = st
+        if best is None or best.n < self.historical.min_sample:
+            return None
+        return {"n": best.n, "hit_pct": best.hit_pct(),
+                "median_pct": round(best.median_return * 100, 2),
+                "horizon_h": best.horizon_h,
+                "category": top["category"], "direction": top["direction"]}
 
     def _task_daily(self) -> None:
         for sym in self.symbols:
@@ -688,16 +732,9 @@ class Daemon:
         # Append the fused synthesis read so the periodic pulse also carries an
         # actionable "where's the edge" line.
         try:
-            from datetime import timedelta as _td
-            from .playbook import classify_intel
-            from .synthesis import build_synthesis, format_synthesis
-            evs = [e for e in self.storage.recent_events(
-                       datetime.now(timezone.utc) - _td(hours=24))
-                   if e.get("source") not in ("seed", None)]
+            from .synthesis import format_synthesis
             levels = self._key_levels(chart) if chart is not None else None
-            syn = build_synthesis(classify_intel(evs), chart,
-                                  self._mtf_trends(self.primary), levels, evs)
-            block = format_synthesis(syn)
+            block = format_synthesis(self._build_synthesis(chart, levels))
             if msg and block:
                 msg = msg + "\n\n" + block
         except Exception:

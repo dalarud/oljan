@@ -186,7 +186,16 @@ export function buildSynthesis(live, state) {
 
   const alignment = conflicts.length ? "konflikt" : (side !== "wait" ? "samstämmig" : "neutral");
 
+  // Event-study prior from the engine (null until its outcomes table matures).
+  const a = state?.analog || null;
+  const analog = a ? {
+    ...a,
+    text: `${a.n} liknande ${a.direction === "bullish" ? "hausse" : "baisse"}-${a.category} → ` +
+      `${a.hit_pct}% i riktningen, median ${a.median_pct >= 0 ? "+" : ""}${a.median_pct}% (${a.horizon_h}h)`,
+  } : null;
+
   return {
+    analog,
     side, label, tone, conviction: conv,
     alignment,
     narrative,
