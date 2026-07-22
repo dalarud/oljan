@@ -103,12 +103,21 @@ trader_profile:
 
 setups:
   # Proactive trade-trigger alerts. For a mean-reversion RSI trader the trigger
-  # is the RECLAIM (RSI pushing back through the threshold from oversold/
-  # overbought) at a key level — fired on the live chart as it happens,
-  # trend- and news-aware. Only fires when price data is live (fresh candle).
+  # is the RECLAIM (RSI pushing back through an ADAPTIVE threshold from
+  # oversold/overbought) at a key level — fired on the live chart as it
+  # happens, trend- and news-aware. Only fires when price data is live.
+  #
+  # Rules are backtest-driven (run: python -m oiltrader.backtest). On stored
+  # Brent candles a fixed 30/70 reclaim was structurally counter-trend and lost
+  # (~-0.17R); requiring a rejection candle plus adaptive thresholds flipped it
+  # positive, and short-reversion (fading rallies) lost badly (~-0.5R) so it is
+  # off by default.
   enabled: true
   level_proximity_pct: 0.35    # how close to a level counts as "at" it
   cooldown_minutes: 30         # min gap between same-side setup alerts
+  require_rejection: true      # trigger bar must close back off the level
+  allow_shorts: false          # short-reversion had negative backtest edge
+  min_quality: 55              # 0-100 confluence score floor before alerting
 
 news:
   # DEFAULT = concurrent batch poll (stream_enabled: false). Every source is

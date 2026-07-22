@@ -42,11 +42,20 @@ class ChartContext:
     source: str = ""              # data provider that served the candles
     last_candle_age_min: float = 0.0
     price_sane: bool = True        # price within a plausible oil band
+    # Adaptive RSI thresholds: the recent RSI range, not a fixed 30/70. In a
+    # persistent trend RSI never reaches 30, so a fixed line fires only
+    # counter-trend knife-catches (backtest: negative edge). These follow the
+    # last ~200 bars so a "reclaim" is measured against the regime in force.
+    rsi_os_dyn: float = 30.0
+    rsi_ob_dyn: float = 70.0
+    # Where the last candle closed within its own range, 0=at low, 1=at high.
+    # Used to require a rejection/confirmation candle before entering.
+    bar_close_pos: float = 0.5
 
     def rsi_state(self) -> str:
-        if self.rsi >= 70:
+        if self.rsi >= self.rsi_ob_dyn:
             return "overbought"
-        if self.rsi <= 30:
+        if self.rsi <= self.rsi_os_dyn:
             return "oversold"
         return "neutral"
 
@@ -187,6 +196,21 @@ def compute(df: pd.DataFrame, symbol: str, cfg,
     else:
         trend = "sideways"
 
+    # Adaptive RSI thresholds from the recent RSI distribution (clamped so a
+    # runaway trend can't push the bands to absurd extremes). Mirrors the
+    # backtested S2 variant, the only one with positive edge across exits.
+    r_recent = r.tail(200)
+    if len(r_recent.dropna()) >= 50:
+        os_dyn = float(np.clip(r_recent.quantile(0.20), 25.0, 45.0))
+        ob_dyn = float(np.clip(r_recent.quantile(0.80), 55.0, 75.0))
+    else:
+        os_dyn, ob_dyn = 30.0, 70.0
+
+    last = df.iloc[-1]
+    bar_rng = float(last["high"]) - float(last["low"])
+    bar_close_pos = (float((last["close"] - last["low"]) / bar_rng)
+                     if bar_rng > 0 else 0.5)
+
     supports, resistances = support_resistance(
         df, price, sr_lookback, sr_width, sr_cluster)
     nearest_sup = supports[0] if supports else None
@@ -222,4 +246,7 @@ def compute(df: pd.DataFrame, symbol: str, cfg,
         timeframe=timeframe,
         last_candle_age_min=round(age_min, 1),
         price_sane=price_sane,
+        rsi_os_dyn=round(os_dyn, 1),
+        rsi_ob_dyn=round(ob_dyn, 1),
+        bar_close_pos=round(bar_close_pos, 3),
     )

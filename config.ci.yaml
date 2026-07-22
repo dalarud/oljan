@@ -65,6 +65,12 @@ setups:
   enabled: true               # proactive alerts when a trade condition triggers
   level_proximity_pct: 0.35   # how close to a level counts as "at" it
   cooldown_minutes: 30        # min gap between same-side setup alerts
+  # Backtest-driven gating (see oiltrader/backtest.py). A confirmed long needs a
+  # rejection candle; shorts backtested to negative edge on this instrument, so
+  # they are OFF by default and, when enabled, demand a real downtrend.
+  require_rejection: true
+  allow_shorts: false
+  min_quality: 55             # 0-100 confluence score floor before alerting
 news:
   stream_enabled: false
   stream_gather_seconds: 25

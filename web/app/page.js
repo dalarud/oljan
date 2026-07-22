@@ -5,11 +5,16 @@ import TradingViewWidget from "../components/TradingViewWidget";
 import RiskCalc from "../components/RiskCalc";
 import ScoreViz from "../components/ScoreViz";
 import Countdown from "../components/Countdown";
-import { rsi, atr, ema, computeLevels } from "../lib/indicators";
+import { rsi, atr, ema, computeLevels, rsiBands } from "../lib/indicators";
 
 const LiveChart = dynamic(() => import("../components/LiveChart"), { ssr: false });
 
-const RSI_OB = 70, RSI_OS = 30, NEAR = 0.0035, COOLDOWN_MS = 30 * 60 * 1000;
+const NEAR = 0.0035, COOLDOWN_MS = 30 * 60 * 1000;
+// Rejection-candle gates (close position within the trigger bar's range) and
+// the short switch — mirrors the engine (setups.py). Shorts backtested to
+// negative edge on this instrument, so they are OFF: an overbought reclaim
+// surfaces as a caution, never as an actionable SÄLJ signal.
+const REJECT_LONG = 0.60, REJECT_SHORT = 0.40, ALLOW_SHORTS = false;
 
 const dirClass = (d) => (d === "bullish" ? "bull" : d === "bearish" ? "bear" : "neutral");
 const biasLabel = (d) => (d === "bullish" ? "HAUSSE" : d === "bearish" ? "BAISSE" : "NEUTRAL");
@@ -79,6 +84,10 @@ export default function Page() {
     const trend = eFast != null && eSlow != null
       ? (eFast > eSlow * 1.0003 ? "up" : eFast < eSlow * 0.9997 ? "down" : "flat")
       : "flat";
+    const bands = rsiBands(closes);
+    const lc = candles[candles.length - 1];
+    const rng = lc.h - lc.l;
+    const closePos = rng > 0 ? (lc.c - lc.l) / rng : 0.5;
     return {
       price: closes[closes.length - 1],
       rsi: rsi(closes),
@@ -86,6 +95,9 @@ export default function Page() {
       trend,
       levels: computeLevels(candles),
       lastTs: candles[candles.length - 1].t,
+      osDyn: bands.os,
+      obDyn: bands.ob,
+      closePos,
     };
   }, [candles]);
 
@@ -110,43 +122,56 @@ export default function Page() {
     if (prev == null) return;
 
     const lv = live.levels;
+    const os = live.osDyn ?? 30, ob = live.obDyn ?? 70;
     const nearAny = (arr) =>
       (arr || []).find((x) => Math.abs(live.price - x.v) / live.price <= NEAR);
     const now = Date.now();
     let setup = null;
-    if (prev <= RSI_OS && live.rsi > RSI_OS) {
+    // Long reclaim: RSI back above the ADAPTIVE oversold line, at support, with
+    // a rejection candle (close snapping off the low). This is the edge side.
+    if (prev <= os && live.rsi > os) {
       const at = nearAny(lv?.support);
-      if (at && now - cooldownRef.current.long > COOLDOWN_MS) {
+      if (at && live.closePos >= REJECT_LONG &&
+          now - cooldownRef.current.long > COOLDOWN_MS) {
         cooldownRef.current.long = now;
         setup = { side: "KÖP", cls: "bull", at, target: lv?.pivot ?? lv?.resistance?.[0]?.v };
       }
-    } else if (prev >= RSI_OB && live.rsi < RSI_OB) {
+    } else if (prev >= ob && live.rsi < ob) {
+      // Overbought reclaim -> short. Negative edge on this instrument, so it is
+      // never an actionable signal: surface a caution and stop.
       const at = nearAny(lv?.resistance);
       if (at && now - cooldownRef.current.short > COOLDOWN_MS) {
         cooldownRef.current.short = now;
-        setup = { side: "SÄLJ", cls: "bear", at, target: lv?.pivot ?? lv?.support?.[0]?.v };
+        const downOk = ALLOW_SHORTS && live.trend === "down" &&
+          live.closePos <= REJECT_SHORT;
+        const cmsg = downOk
+          ? `⚠️ SETUP SÄLJ (försiktig) · RSI-reclaim ${Math.round(prev)}→${Math.round(live.rsi)} ` +
+            `vid ${at.label} ${at.v} · short-reversion har svag edge här – liten storlek, tajt stopp`
+          : `ℹ️ Överköpt-reclaim vid ${at.label} ${at.v}, men short-fade har negativ historisk edge på detta instrument – avstå eller vänta på riktig nedtrend + avvisning`;
+        setBanner({ side: "SÄLJ", cls: "bear", msg: cmsg, ts: now, warn: true });
       }
+      return;
     }
     if (!setup) return;
-    // Trend/regime guard: a counter-trend reversion (short in an uptrend or
-    // long in a downtrend) must present itself as a WARNING, not a signal —
-    // RSI can stay pinned in a trending, headline-driven market.
-    const counterTrend =
-      (setup.side === "SÄLJ" && live.trend === "up") ||
-      (setup.side === "KÖP" && live.trend === "down");
-    // Fresh-headline guard: recent same-direction intel = momentum, not reversion.
+    // A long in a downtrend is counter-trend: warn, don't cheer.
+    const counterTrend = live.trend === "down";
+    // Fresh-headline guard: recent opposite-direction intel = momentum, not reversion.
     const winSec = 30 * 60;
     const freshOpp = (s?.events || []).filter((e) =>
-      e.ts && e.ts > now / 1000 - winSec &&
-      ((setup.side === "SÄLJ" && e.dir === "bullish") ||
-        (setup.side === "KÖP" && e.dir === "bearish"))).length;
+      e.ts && e.ts > now / 1000 - winSec && e.dir === "bearish").length;
+    // Confluence quality, same shape as the engine.
+    let quality = 40;
+    quality += counterTrend ? 0 : 25;
+    quality += live.closePos >= 0.75 ? 20 : 10;
+    quality += freshOpp > 0 ? -25 : 10;
+    quality = Math.max(0, Math.min(100, quality));
     let prefix = "";
     if (counterTrend)
       prefix = `⚠️ MOTTREND (trend ${live.trend}${s?.regime ? `, regim ${s.regime}` : ""}) – litet/tajt eller avstå · `;
     if (freshOpp > 0)
       prefix += `⚠️ ${freshOpp} färsk motstående rubrik – momentum, fadea inte · `;
     const msg = `${prefix}SETUP ${setup.side} · RSI-reclaim ${Math.round(prev)}→${Math.round(live.rsi)} ` +
-      `vid ${setup.at.label} ${setup.at.v} · pris ${live.price.toFixed(2)}` +
+      `(OS-linje ${os.toFixed(0)}) vid ${setup.at.label} ${setup.at.v} · pris ${live.price.toFixed(2)} · kvalitet ${quality}/100` +
       (setup.target ? ` · mål ${Number(setup.target).toFixed(2)}` : "");
     setBanner({ ...setup, msg, ts: now, warn: counterTrend || freshOpp > 0 });
     if (alertsOn) {
