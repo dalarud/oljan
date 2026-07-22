@@ -70,29 +70,49 @@ export default function Page() {
     return () => { alive = false; clearInterval(t); };
   }, []);
 
+  // Anchor the live futures basis (raw BZ=F) to the engine's instrument basis
+  // (UKOIL). /api/price serves the unscaled Brent future (~84) while the user
+  // trades UKOIL (~92) — the same gap the engine already closes with its BNO
+  // scale factor. Re-anchor here so price, levels and the analysis chart match
+  // the TradingView chart. RSI/ATR/%-returns are scale-invariant, so this
+  // shifts only the displayed price level, never the signals.
+  const scaledCandles = useMemo(() => {
+    if (!candles || candles.length === 0) return candles;
+    const rawLast = candles[candles.length - 1].c;
+    let k = 1;
+    if (s?.price && rawLast > 0) {
+      const r = s.price / rawLast;
+      if (r > 0.6 && r < 1.7) k = r; // sanity guard against a bad tick
+    }
+    if (k === 1) return candles;
+    return candles.map((c) => ({
+      t: c.t, o: c.o * k, h: c.h * k, l: c.l * k, c: c.c * k, v: c.v,
+    }));
+  }, [candles, s?.price]);
+
   const live = useMemo(() => {
-    if (!candles || candles.length < 30) return null;
-    const closes = candles.map((c) => c.c);
+    if (!scaledCandles || scaledCandles.length < 30) return null;
+    const closes = scaledCandles.map((c) => c.c);
     const eFast = ema(closes, 12), eSlow = ema(closes, 26);
     const trend = eFast != null && eSlow != null
       ? (eFast > eSlow * 1.0003 ? "up" : eFast < eSlow * 0.9997 ? "down" : "flat")
       : "flat";
     const bands = rsiBands(closes);
-    const lc = candles[candles.length - 1];
+    const lc = scaledCandles[scaledCandles.length - 1];
     const rng = lc.h - lc.l;
     const closePos = rng > 0 ? (lc.c - lc.l) / rng : 0.5;
     return {
       price: closes[closes.length - 1],
       rsi: rsi(closes),
-      atr: atr(candles),
+      atr: atr(scaledCandles),
       trend,
-      levels: computeLevels(candles),
-      lastTs: candles[candles.length - 1].t,
+      levels: computeLevels(scaledCandles),
+      lastTs: scaledCandles[scaledCandles.length - 1].t,
       osDyn: bands.os,
       obDyn: bands.ob,
       closePos,
     };
-  }, [candles]);
+  }, [scaledCandles]);
 
   const liveAgeMin = live ? Math.max(0, (Date.now() / 1000 - live.lastTs) / 60) : null;
   const liveFresh = liveAgeMin != null && liveAgeMin < 20;
@@ -179,11 +199,11 @@ export default function Page() {
   // ---- browser momentum alert: sustained move, headline or not -------------
   const momCooldownRef = useRef(0);
   useEffect(() => {
-    if (!candles || candles.length < 12 || !liveFresh || !live) return;
-    const nowSec = candles[candles.length - 1].t;
+    if (!scaledCandles || scaledCandles.length < 12 || !liveFresh || !live) return;
+    const nowSec = scaledCandles[scaledCandles.length - 1].t;
     const winMin = 45;
-    const past = candles.filter((c) => c.t <= nowSec - winMin * 60);
-    const base = past.length ? past[past.length - 1].c : candles[0].c;
+    const past = scaledCandles.filter((c) => c.t <= nowSec - winMin * 60);
+    const base = past.length ? past[past.length - 1].c : scaledCandles[0].c;
     if (!base) return;
     const pct = ((live.price - base) / base) * 100;
     const thr = Math.max(0.5, live.atr ? (1.5 * live.atr / live.price) * 100 : 0);
@@ -204,7 +224,7 @@ export default function Page() {
           new Notification("Oljan – momentum", { body: msg });
       } catch {}
     }
-  }, [candles, live, liveFresh, alertsOn, s]);
+  }, [scaledCandles, live, liveFresh, alertsOn, s]);
 
   const enableAlerts = async () => {
     try {
@@ -329,7 +349,7 @@ export default function Page() {
               </span>
             </div>
             <div className="ol-analysisbox">
-              <LiveChart candles={candles} levels={live?.levels} events={s?.events} height={300} />
+              <LiveChart candles={scaledCandles} levels={live?.levels} events={s?.events} height={300} />
             </div>
             {liveAgeMin != null && liveAgeMin >= 8 && (
               <p className="ol-risk-hint" style={{ paddingTop: 0 }}>
