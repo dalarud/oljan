@@ -5,7 +5,9 @@ import TradingViewWidget from "../components/TradingViewWidget";
 import RiskCalc from "../components/RiskCalc";
 import ScoreViz from "../components/ScoreViz";
 import Countdown from "../components/Countdown";
+import Synthesis from "../components/Synthesis";
 import { rsi, atr, ema, computeLevels, rsiBands } from "../lib/indicators";
+import { buildSynthesis } from "../lib/synthesis";
 
 const LiveChart = dynamic(() => import("../components/LiveChart"), { ssr: false });
 
@@ -186,6 +188,9 @@ export default function Page() {
 
   const liveAgeMin = live ? Math.max(0, (Date.now() / 1000 - live.lastTs) / 60) : null;
   const liveFresh = liveAgeMin != null && liveAgeMin < 20;
+
+  // Fused technical + fundamental read (the "edge" synthesis).
+  const syn = useMemo(() => buildSynthesis(live, s), [live, s]);
 
 
   // ---- browser-side setup detection (#2): RSI reclaim at a level -----------
@@ -402,6 +407,9 @@ export default function Page() {
       {/* MAIN */}
       <main className="ol-main">
         <div className="ol-maincol">
+
+          {/* 0. SYNTES & EDGE — fused technical + fundamental read */}
+          <Synthesis syn={syn} />
 
           {/* 3. TRADINGVIEW */}
           <section className="ol-card">
