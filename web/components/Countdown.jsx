@@ -69,30 +69,30 @@ export default function Countdown() {
     .map(([wd, tz, hh, mm, label, hot]) => ({ label, hot, ts: nextOccurrence(wd, tz, hh, mm) }))
     .filter((x) => x.ts)
     .sort((a, b) => a.ts - b.ts)
-    .slice(0, 3);
+    .slice(0, 5);
   const [sess, liq, cls] = session();
+  const dotColor = cls === "bull" ? "var(--green)" : cls === "warn" ? "var(--amber)" : "var(--gray)";
 
   return (
-    <div className="card">
-      <h3>Klocka & katalysatorer</h3>
-      <div style={{ marginBottom: 8 }}>
-        <span className={`pill ${cls}`}>{sess}</span>{" "}
-        <span className="sub">{liq}</span>
+    <section className="ol-card">
+      <div className="ol-cardhead"><span className="ol-cardtitle">Sessionsklocka</span></div>
+      <div className="ol-session-status">
+        <span className="ol-session-dot" style={{ background: dotColor }} />
+        <span className="ol-session-label">{sess} · {liq}</span>
       </div>
-      {items.map((it, i) => (
-        <div className="levelrow" key={i}>
-          <span className={it.hot ? "lvl-piv" : ""}>{it.hot ? "⚡ " : ""}{it.label}</span>
-          <span>
-            {fmt(it.ts - now)}
-            <span className="sub">
-              {" · "}
-              {new Date(it.ts).toLocaleTimeString("sv-SE", {
+      <div className="ol-catalysts">
+        {items.map((it, i) => (
+          <div className="ol-cat-row" key={i}>
+            <span className={`ol-cat-hotdot${it.hot ? " hot" : ""}`} />
+            <span className="ol-cat-name">{it.label}</span>
+            <span className="ol-cat-count">
+              {fmt(it.ts - now)} · {new Date(it.ts).toLocaleTimeString("sv-SE", {
                 timeZone: "Europe/Stockholm", hour: "2-digit", minute: "2-digit",
               })}
             </span>
-          </span>
-        </div>
-      ))}
-    </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

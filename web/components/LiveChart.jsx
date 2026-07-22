@@ -28,7 +28,7 @@ export default function LiveChart({ candles, levels, events, height = 340 }) {
     if (!boxRef.current) return;
     const chart = createChart(boxRef.current, {
       height,
-      layout: { background: { color: "#0F0F0F" }, textColor: "#9aa0aa" },
+      layout: { background: { color: "#131519" }, textColor: "#8b93a1" },
       grid: {
         vertLines: { color: "rgba(242,242,242,0.05)" },
         horzLines: { color: "rgba(242,242,242,0.05)" },
@@ -80,7 +80,7 @@ export default function LiveChart({ candles, levels, events, height = 340 }) {
     };
     (levels?.resistance || []).forEach((r) => mk(r.v, "#ef5350", r.label));
     (levels?.support || []).forEach((s) => mk(s.v, "#26a69a", s.label));
-    if (levels?.pivot != null) mk(levels.pivot, "#e2b93b", "pivot");
+    if (levels?.pivot != null) mk(levels.pivot, "#46a2e0", "pivot");
 
     // event markers snapped to the nearest candle at/before the event
     if (events && events.length && candles.length) {

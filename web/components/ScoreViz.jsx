@@ -2,52 +2,71 @@
 // Visual track record: each scored alert as a dot (hit/miss) plus precision
 // per conviction band — makes the engine's self-evaluation glanceable.
 
-const BANDS = [[0, 39, "0–39"], [40, 59, "40–59"], [60, 79, "60–79"], [80, 100, "80–100"]];
+const BANDS = [
+  [0, 50, "Låg konviktion (<50)"],
+  [50, 75, "Medel (50–75)"],
+  [75, 101, "Hög (>75)"],
+];
 
 export default function ScoreViz({ alerts, fallbackText }) {
-  const scored = (alerts || []).filter((a) => a.correct != null);
+  const all = alerts || [];
+  const scored = all.filter((a) => a.correct != null);
+
   if (scored.length === 0) {
     return (
-      <div className="card">
-        <h3>Träffsäkerhet</h3>
-        <p className="pre">{fallbackText ? fallbackText.replace(/\*/g, "") : "Bygger upp track record — varje skickat larm poängsätts mot prisrörelsen 1h senare."}</p>
-      </div>
+      <section className="ol-card">
+        <div className="ol-cardhead">
+          <span className="ol-cardtitle">Träffsäkerhet</span>
+          <span className="ol-cardsub">Senaste 14 dagarna</span>
+        </div>
+        <div className="ol-track">
+          <p className="ol-scorecard">
+            {fallbackText ? fallbackText.replace(/\*/g, "")
+              : "Bygger upp track record — varje skickat larm poängsätts mot prisrörelsen 1h senare."}
+          </p>
+        </div>
+      </section>
     );
   }
-  const hits = scored.filter((a) => a.correct).length;
-  const overall = Math.round((hits / scored.length) * 100);
-  const recent = [...scored].sort((a, b) => (a.ts || 0) - (b.ts || 0)).slice(-40);
+
+  const hits = scored.filter((a) => a.correct === 1).length;
+  const rate = Math.round((hits / scored.length) * 100);
+  const dots = [...all].sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 24);
+
+  const bands = BANDS.map(([lo, hi, label]) => {
+    const b = scored.filter((a) => (a.conv ?? 0) >= lo && (a.conv ?? 0) < hi);
+    const bh = b.filter((a) => a.correct === 1).length;
+    return { label, rate: b.length ? `${Math.round((bh / b.length) * 100)}%` : "—" };
+  });
 
   return (
-    <div className="card">
-      <h3>Träffsäkerhet ({scored.length} poängsatta larm, 14d)</h3>
-      <div style={{ marginBottom: 8 }}>
-        <span className={`pill ${overall >= 55 ? "bull" : overall >= 45 ? "warn" : "bear"}`}>
-          {overall}% rätt totalt
-        </span>
+    <section className="ol-card">
+      <div className="ol-cardhead">
+        <span className="ol-cardtitle">Träffsäkerhet</span>
+        <span className="ol-cardsub">Senaste 14 dagarna</span>
       </div>
-      <div className="dots">
-        {recent.map((a, i) => (
-          <span key={i} className={`sq ${a.correct ? "hit" : "miss"}`}
-            title={`konv ${a.conv} · ${a.dir} · ${(a.ret * 100).toFixed(2)}%`} />
-        ))}
+      <div className="ol-track">
+        <div className="ol-track-top">
+          <span className="ol-hitrate">{rate}%</span>
+          <span className="ol-hitcount">{hits} av {scored.length} poängsatta larm</span>
+        </div>
+        <div className="ol-dots">
+          {dots.map((a, i) => (
+            <span key={i}
+              className={`ol-dot ${a.correct == null ? "pending" : a.correct ? "hit" : "miss"}`}
+              title={`konv ${a.conv} · ${a.dir} · ${((a.ret ?? 0) * 100).toFixed(2)}%`} />
+          ))}
+        </div>
+        <div className="ol-bands">
+          {bands.map((b) => (
+            <div className="ol-band" key={b.label}>
+              <span className="ol-band-label">{b.label}</span>
+              <span className="ol-band-rate">{b.rate}</span>
+            </div>
+          ))}
+        </div>
+        {fallbackText && <p className="ol-scorecard">{fallbackText.replace(/\*/g, "")}</p>}
       </div>
-      {BANDS.map(([lo, hi, label]) => {
-        const b = scored.filter((a) => (a.conv ?? 0) >= lo && (a.conv ?? 0) <= hi);
-        if (b.length === 0) return null;
-        const p = Math.round((b.filter((a) => a.correct).length / b.length) * 100);
-        return (
-          <div key={label} className="bandrow">
-            <span className="sub" style={{ width: 56 }}>konv {label}</span>
-            <div className="bar"><div className={`fill ${p >= 55 ? "g" : p >= 45 ? "y" : "r"}`}
-              style={{ width: `${p}%` }} /></div>
-            <span className="sub" style={{ width: 76, textAlign: "right" }}>{p}% · n={b.length}</span>
-          </div>
-        );
-      })}
-      <div className="sub" style={{ marginTop: 6 }}>
-        Riktningsträff mot prisrörelsen 1h efter larmet. Högre band bör vara grönare — annars är tröskeln fel satt.
-      </div>
-    </div>
+    </section>
   );
 }
