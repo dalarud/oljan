@@ -284,6 +284,15 @@ class Daemon:
         sup = [{"label": l, "v": disp(v)}
                for l, v in (levels.supports_below() if levels else [])][:3]
         piv = (levels.vwap or getattr(levels, "pdc", None)) if levels else None
+        # Scored alert history for the dashboard's precision visualisation.
+        alert_rows = self.storage.alert_stats(
+            datetime.now(timezone.utc) - timedelta(days=14))
+        alerts = [{"ts": a.get("ts"), "conv": a.get("conviction"),
+                   "correct": a.get("correct"), "dir": a.get("direction"),
+                   "ret": round(float(a.get("fwd_return") or 0.0), 4)}
+                  for a in alert_rows[:100]]
+        scale_factor = (self.cfg.get("market_data.scale_override", {})
+                        or {}).get(self.primary)
         bias = ("bullish" if intel["bias"] > 0.1 else
                 "bearish" if intel["bias"] < -0.1 else "neutral")
         state = {
@@ -292,6 +301,7 @@ class Daemon:
             "price": disp(chart.price) if chart is not None else None,
             "price_source": (chart.source if chart is not None else None),
             "price_stale_min": round(chart.last_candle_age_min) if chart else None,
+            "scale_factor": scale_factor,
             "rsi": round(chart.rsi) if chart is not None else None,
             "trend": self._mtf_trends(self.primary),
             "bias": bias, "regime": intel["regime"],
@@ -310,6 +320,7 @@ class Daemon:
                                  self.market.last_price(self.primary),
                                  chart.trend if chart else None, name),
             "scorecard": self.evaluator.scorecard(14),
+            "alerts": alerts,
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(state, f, ensure_ascii=False, indent=2)
