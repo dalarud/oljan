@@ -319,6 +319,7 @@ notifications:
     enabled: true
     time: "06:00"
     night_hours: 9
+    window_minutes: 360
   heartbeat_hours: 12
   pulse_hours: 3
   always_notify_substantial: true

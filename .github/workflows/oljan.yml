@@ -22,7 +22,11 @@ name: Oljan scheduled watch
 
 on:
   schedule:
-    - cron: "*/15 * * * *"     # every 15 minutes (UTC)
+    # Every 20 min during weekday trading hours (06:00-21:00 UTC = ~08:00-23:00
+    # svensk, Mon-Fri). Sized to stay under a PRIVATE repo's 2000 free Action
+    # minutes/month (~1600 min). Oil is closed on weekends. Make the repo public
+    # for unlimited free minutes and you can widen this to "*/15 * * * *" (24/7).
+    - cron: "*/20 6-21 * * 1-5"
   workflow_dispatch: {}         # allow manual "Run workflow"
 
 concurrency:

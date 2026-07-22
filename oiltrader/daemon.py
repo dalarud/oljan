@@ -481,10 +481,15 @@ class Daemon:
         target_min = th * 60 + tm
         now_min = now_local.hour * 60 + now_local.minute
         today = now_local.strftime("%Y-%m-%d")
-        # Fire once, in the window [target, target+3h), if not already sent today.
+        # Fire once per day on the FIRST run at/after the target time, within a
+        # generous window. GitHub's scheduled cron is sparse/irregular (can skip
+        # 1-3 h), so a narrow window is missed entirely — hence a wide default
+        # (6 h): the briefing still goes out on the first run of the morning,
+        # just a little late rather than never.
+        window = self.cfg.get("notifications.morning_report.window_minutes", 360)
         if self.storage.get_meta("morning_report_date") == today:
             return
-        if not (target_min <= now_min < target_min + 180):
+        if not (target_min <= now_min < target_min + window):
             return
         chart = self._primary_chart(self.primary)
         report = build_morning_report(
