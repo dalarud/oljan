@@ -420,6 +420,7 @@ notifications:
     enabled: true
     time: "06:00"               # local (timezone above); fires once/day at/after
     night_hours: 9              # how far back the night recap looks
+    window_minutes: 360         # wide: a scheduled/sparse runner still catches the AM report
   heartbeat_hours: 12           # periodic "still alive" ping (0 = disabled)
   pulse_hours: 3                # periodic market-pulse digest (0 = disabled)
   always_notify_substantial: true  # substantial events bypass min_notify_score
