@@ -313,7 +313,13 @@ export default function Page() {
           <LiveChart candles={candles} levels={live?.levels}
             events={s?.events} height={340} />
           <div className="sub" style={{ marginTop: 6 }}>
-            Riktiga Brent-terminer (5m) · linjer = beräknade nivåer · pilar = underrättelser (grön hausse / röd baisse).
+            Brent-terminer (BZ=F, 5m) · tider i svensk tid · linjer = nivåer · pilar = underrättelser (grön hausse / röd baisse).
+            {liveAgeMin != null && (
+              <span className={liveAgeMin > 20 ? "stale" : ""}>
+                {" "}· sista stake {Math.round(liveAgeMin)} min sedan
+                {liveAgeMin >= 8 ? " — Yahoos gratis-feed är ~10–15 min fördröjd; TradingView-charten ovan är realtid" : ""}
+              </span>
+            )}
           </div>
         </div>
 
