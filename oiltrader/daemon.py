@@ -512,6 +512,22 @@ class Daemon:
             return  # already flagged this side recently
         name = self.cfg.primary_instrument.get("name", self.primary)
         msg = format_setup(setup, name, disp=lambda v: v + self.analyzer.broker_offset)
+        # Enrich the push with the fused technical+fundamental synthesis so the
+        # alert is a complete decision aid, not just the raw trigger.
+        try:
+            from datetime import timedelta as _td
+            from .playbook import classify_intel
+            from .synthesis import build_synthesis, format_synthesis
+            evs = [e for e in self.storage.recent_events(
+                       datetime.now(timezone.utc) - _td(hours=24))
+                   if e.get("source") not in ("seed", None)]
+            syn = build_synthesis(classify_intel(evs), chart,
+                                  self._mtf_trends(self.primary), levels, evs)
+            block = format_synthesis(syn)
+            if block:
+                msg = msg + "\n\n" + block
+        except Exception:
+            log.debug("synthesis enrich failed", exc_info=True)
         if self.notifier.send_text(msg):
             self.storage.record_notification(None, "setup", setup.dedup_key())
             log.info("SETUP %s fired (%s) rsi %.0f->%.0f conf=%s",
@@ -669,6 +685,23 @@ class Daemon:
         msg = build_pulse(self.storage, self.pulse_hours,
                           self.market.last_price(self.primary),
                           chart.trend if chart else None, name)
+        # Append the fused synthesis read so the periodic pulse also carries an
+        # actionable "where's the edge" line.
+        try:
+            from datetime import timedelta as _td
+            from .playbook import classify_intel
+            from .synthesis import build_synthesis, format_synthesis
+            evs = [e for e in self.storage.recent_events(
+                       datetime.now(timezone.utc) - _td(hours=24))
+                   if e.get("source") not in ("seed", None)]
+            levels = self._key_levels(chart) if chart is not None else None
+            syn = build_synthesis(classify_intel(evs), chart,
+                                  self._mtf_trends(self.primary), levels, evs)
+            block = format_synthesis(syn)
+            if msg and block:
+                msg = msg + "\n\n" + block
+        except Exception:
+            log.debug("pulse synthesis enrich failed", exc_info=True)
         if msg:
             self.notifier.send_ambient(msg)
 
