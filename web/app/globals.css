@@ -203,9 +203,18 @@ input[type=number]::-webkit-inner-spin-button { opacity: 0.5; }
 .ol-level-price { font: 600 14px/1 var(--mono); color: var(--text); }
 .ol-pivot-row { display: flex; align-items: center; gap: 10px; padding: 10px 20px;
   border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
-.ol-calib { margin: 0; padding: 10px 20px 16px; border-top: 1px solid oklch(0.3 0.015 250 / 0.5);
+.ol-calib { margin: 0; padding: 12px 20px 16px; border-top: 1px solid oklch(0.3 0.015 250 / 0.5);
   font: 400 11.5px/1.5 var(--sans); color: var(--text-faint); }
 .ol-calib code { font-family: var(--mono); color: var(--text-sub); }
+.ol-cal-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font: 500 12px/1 var(--sans); color: var(--text-sub); }
+.ol-cal-input { width: 84px; background: transparent; border: 1px solid var(--hairline);
+  border-radius: 2px; padding: 6px 8px; color: var(--text); font: 500 13px var(--mono); outline: none; }
+.ol-cal-input:focus { border-color: var(--accent); }
+.ol-cal-btn { font: 600 10.5px/1 var(--sans); letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 7px 11px; border-radius: 2px; cursor: pointer; background: var(--accent-dim);
+  color: var(--accent); border: 1px solid var(--accent); }
+.ol-cal-btn:hover { background: var(--accent); color: var(--ink); }
 
 /* ---------- 12. footer ---------- */
 .ol-footer { display: flex; flex-direction: row; justify-content: space-between; gap: 8px;

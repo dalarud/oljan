@@ -34,6 +34,17 @@ export default function Page() {
   const prevRsiRef = useRef(null);
   const cooldownRef = useRef({ long: 0, short: 0 });
   const audioRef = useRef(null);
+  // Manual calibration to the user's own UKOIL screen (additive offset in
+  // points). The free BZ=F feed diverges from UKOIL (delay, contract rolls),
+  // so the only reliable anchor is the price the user actually sees.
+  const [calOffset, setCalOffset] = useState(null);
+  const [calInput, setCalInput] = useState("");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("oljan_cal_offset");
+      if (v != null && v !== "") setCalOffset(parseFloat(v));
+    } catch {}
+  }, []);
 
   // ---- engine snapshot (intelligence layer), each minute -------------------
   useEffect(() => {
@@ -70,36 +81,63 @@ export default function Page() {
     return () => { alive = false; clearInterval(t); };
   }, []);
 
-  // The free Yahoo BZ=F feed carries bad-tick / contract-roll gaps (e.g. a
-  // clean ~92 tape cliff-dropping to ~84 for a stretch). The engine's price
-  // (state.price, UKOIL basis) is the trusted reference. So: (1) drop candles
-  // that deviate too far from that reference — those are feed glitches, not
-  // real price — then (2) anchor the clean series to the engine basis via the
-  // last *clean* close. When the feed is clean BZ=F ≈ UKOIL, so k ≈ 1 and only
-  // glitches are removed. RSI/ATR/%-returns are scale-invariant, so anchoring
-  // shifts only the displayed price level, never the signals.
-  const OUTLIER_BAND = 0.08; // |close - engine price| / engine price
-  const scaledCandles = useMemo(() => {
-    if (!candles || candles.length === 0) return candles;
-    const ref = s?.price;
-    let clean = candles;
-    if (ref && ref > 0) {
-      const f = candles.filter((c) => c.c > 0 && Math.abs(c.c - ref) / ref <= OUTLIER_BAND);
-      if (f.length >= 30) clean = f; // keep the raw series if filtering is unsafe
+  // The free BZ=F feed carries contract-roll / bad-tick discontinuities — a
+  // sudden multi-point cliff that then holds (e.g. ~95 -> ~85). Splice those
+  // gaps out so the series is continuous on the *latest* basis: walk back from
+  // the newest bar and shift everything before each big jump by that jump, so
+  // history lines up with "now". This keeps every candle (indicators/levels
+  // need the count) instead of dropping a whole segment.
+  const splicedCandles = useMemo(() => {
+    if (!candles || candles.length < 10) return candles;
+    const c = candles.map((x) => x.c);
+    const diffs = [];
+    for (let i = 1; i < c.length; i++) diffs.push(Math.abs(c[i] - c[i - 1]));
+    const sorted = [...diffs].sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)] || 0.1;
+    const thr = Math.max(3.0, med * 10); // only egregious gaps count as breaks
+    const shift = new Array(candles.length).fill(0);
+    let acc = 0;
+    for (let i = c.length - 1; i >= 1; i--) {
+      if (Math.abs(c[i] - c[i - 1]) > thr) acc += c[i] - c[i - 1];
+      shift[i - 1] = acc;
     }
-    let k = 1;
-    if (ref && ref > 0) {
-      const lastClean = clean[clean.length - 1]?.c;
-      if (lastClean > 0) {
-        const r = ref / lastClean;
-        if (r > 0.6 && r < 1.7) k = r; // sanity guard
-      }
-    }
-    if (k === 1) return clean;
-    return clean.map((c) => ({
-      t: c.t, o: c.o * k, h: c.h * k, l: c.l * k, c: c.c * k, v: c.v,
+    if (acc === 0) return candles;
+    return candles.map((x, i) => shift[i] === 0 ? x : ({
+      t: x.t, o: x.o + shift[i], h: x.h + shift[i], l: x.l + shift[i],
+      c: x.c + shift[i], v: x.v,
     }));
-  }, [candles, s?.price]);
+  }, [candles]);
+
+  const rawLastClose = splicedCandles?.length
+    ? splicedCandles[splicedCandles.length - 1].c : null;
+
+  // Additive offset onto the user's UKOIL basis. Manual calibration wins; the
+  // (possibly stale) engine price is only a rough fallback until the user
+  // calibrates. Additive because BZ=F↔UKOIL is a roughly constant spread.
+  const effOffset = useMemo(() => {
+    if (calOffset != null && isFinite(calOffset)) return calOffset;
+    if (s?.price != null && rawLastClose) return s.price - rawLastClose;
+    return 0;
+  }, [calOffset, s?.price, rawLastClose]);
+
+  const scaledCandles = useMemo(() => {
+    if (!splicedCandles || splicedCandles.length === 0) return splicedCandles;
+    if (!effOffset) return splicedCandles;
+    return splicedCandles.map((c) => ({
+      t: c.t, o: c.o + effOffset, h: c.h + effOffset, l: c.l + effOffset,
+      c: c.c + effOffset, v: c.v,
+    }));
+  }, [splicedCandles, effOffset]);
+
+  const calibrated = calOffset != null && isFinite(calOffset);
+  const applyCalibration = () => {
+    const v = parseFloat(calInput);
+    if (!isFinite(v) || !rawLastClose) return;
+    const off = v - rawLastClose;
+    setCalOffset(off);
+    try { localStorage.setItem("oljan_cal_offset", String(off)); } catch {}
+    setCalInput("");
+  };
 
   const live = useMemo(() => {
     if (!scaledCandles || scaledCandles.length < 30) return null;
@@ -128,15 +166,6 @@ export default function Page() {
   const liveAgeMin = live ? Math.max(0, (Date.now() / 1000 - live.lastTs) / 60) : null;
   const liveFresh = liveAgeMin != null && liveAgeMin < 20;
 
-  // ---- calibration watch (#4) ---------------------------------------------
-  const calib = useMemo(() => {
-    if (!s || !live || s.price == null) return null;
-    const isScaled = (s.price_source || "").includes("scaled");
-    const drift = ((live.price - s.price) / live.price) * 100;
-    const suggested = isScaled && s.scale_factor
-      ? s.scale_factor * (live.price / s.price) : null;
-    return { drift, isScaled, suggested };
-  }, [s, live]);
 
   // ---- browser-side setup detection (#2): RSI reclaim at a level -----------
   useEffect(() => {
@@ -445,14 +474,21 @@ export default function Page() {
                 ))}
               </div>
             ) : <div className="ol-empty">Väntar på live-data…</div>}
-            {calib && calib.isScaled && (
-              <p className="ol-calib">
-                Kalibrering: motorns bas avviker {calib.drift >= 0 ? "+" : ""}{calib.drift.toFixed(2)}% från live
-                {Math.abs(calib.drift) > 0.4 && calib.suggested
-                  ? <> — föreslagen skalfaktor <code>{calib.suggested.toFixed(6)}</code>.</>
-                  : " (inom tolerans)."}
-              </p>
-            )}
+            <div className="ol-calib">
+              <div className="ol-cal-row">
+                <span>UKOIL nu:</span>
+                <input className="ol-cal-input" inputMode="decimal"
+                  placeholder={live ? live.price.toFixed(2) : "94.50"}
+                  value={calInput} onChange={(e) => setCalInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") applyCalibration(); }} />
+                <button className="ol-cal-btn" onClick={applyCalibration}>Kalibrera</button>
+              </div>
+              <div style={{ marginTop: 6 }}>
+                {calibrated
+                  ? <>Kalibrerad mot din UKOIL (offset {effOffset >= 0 ? "+" : ""}{effOffset.toFixed(2)}). Justera om det glider.</>
+                  : <>⚠️ Okalibrerad — visar {s?.price ? "motorns bas (kan släpa)" : "rå BZ=F"}. Skriv priset du ser på UKOIL och tryck Kalibrera.</>}
+              </div>
+            </div>
           </section>
         </div>
       </main>
@@ -460,7 +496,7 @@ export default function Page() {
       {/* 12. SIDFOT */}
       <footer className="ol-footer">
         <span>Beslutsstöd, inte finansiell rådgivning. Handel med hävstång innebär hög risk.</span>
-        <span className="faint">Källor: pris via {s?.price_source || "yahoo"} · nivåer &amp; signaler beräknade av motorn</span>
+        <span className="faint">Pris: BZ=F {calibrated ? "kalibrerad mot din UKOIL" : "(okalibrerad)"} · underrättelser/plan från motorn</span>
       </footer>
     </div>
   );
