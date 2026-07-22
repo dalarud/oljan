@@ -239,6 +239,82 @@ class Daemon:
         self._safe(self._cron_pulse_if_due, None, reschedule=False)
         if self.cfg.get("watchdog.enabled", True):
             self._safe(self._task_watchdog, None, reschedule=False)
+        # Publish a snapshot for the web dashboard (best-effort).
+        path = self.cfg.get("web.state_path", "state.json")
+        try:
+            self.export_state(path)
+        except Exception as e:
+            log.warning("state export failed: %s", e)
+
+    def export_state(self, path: str) -> dict:
+        """Write a compact JSON snapshot of the current picture for the web
+        control panel (price, levels, regime, plan, events, pulse, scorecard)."""
+        import json
+        from datetime import timedelta
+        from .playbook import classify_intel, compact_plan
+        from .pulse import build_pulse
+
+        off = self.analyzer.broker_offset
+        chart = self._primary_chart(self.primary)
+        levels = self._key_levels(chart)
+        name = self.cfg.primary_instrument.get("name", self.primary)
+        since = datetime.now(timezone.utc) - timedelta(hours=24)
+        evs = [e for e in self.storage.recent_events(since)
+               if e.get("source") not in ("seed", None)]
+        intel = classify_intel(evs)
+
+        def sc(e):
+            return float(e.get("relevance") or 0) * max(
+                float(e.get("substance") or 0), 0.15)
+
+        top = sorted(evs, key=sc, reverse=True)[:12]
+        events = [{
+            "ts": e.get("ts"), "dir": e.get("direction"),
+            "title": (e.get("title") or "").strip()[:180],
+            "url": e.get("url"), "cat": e.get("category"),
+            "rel": e.get("relevance"),
+            "sub": round(float(e.get("substance") or 0), 2),
+        } for e in top]
+
+        def disp(v):
+            return round(v + off, 2) if isinstance(v, (int, float)) else None
+
+        res = [{"label": l, "v": disp(v)}
+               for l, v in (levels.resistances_above() if levels else [])][:3]
+        sup = [{"label": l, "v": disp(v)}
+               for l, v in (levels.supports_below() if levels else [])][:3]
+        piv = (levels.vwap or getattr(levels, "pdc", None)) if levels else None
+        bias = ("bullish" if intel["bias"] > 0.1 else
+                "bearish" if intel["bias"] < -0.1 else "neutral")
+        state = {
+            "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "instrument": name, "tv_symbol": self.cfg.get("web.tv_symbol", "TVC:UKOIL"),
+            "price": disp(chart.price) if chart is not None else None,
+            "price_source": (chart.source if chart is not None else None),
+            "price_stale_min": round(chart.last_candle_age_min) if chart else None,
+            "rsi": round(chart.rsi) if chart is not None else None,
+            "trend": self._mtf_trends(self.primary),
+            "bias": bias, "regime": intel["regime"],
+            "supply_corroboration": intel.get("supply_corroboration", 0),
+            "levels": {
+                "resistance": res, "support": sup,
+                "pivot": disp(piv),
+                "pdh": disp(levels.pdh) if levels else None,
+                "pdl": disp(levels.pdl) if levels else None,
+            },
+            "plan": compact_plan(evs, chart, levels,
+                                 self.crossasset.snapshot(),
+                                 self.cfg.get("trader_profile")),
+            "events": events,
+            "pulse": build_pulse(self.storage, self.pulse_hours,
+                                 self.market.last_price(self.primary),
+                                 chart.trend if chart else None, name),
+            "scorecard": self.evaluator.scorecard(14),
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+        log.info("dashboard state written to %s", path)
+        return state
 
     def _cron_pulse_if_due(self) -> None:
         """Fire the market pulse if pulse_hours have elapsed since the last one

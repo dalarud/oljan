@@ -23,6 +23,8 @@ def main(argv=None) -> int:
     parser.add_argument("--cron", action="store_true",
                         help="one full scheduled pass (news+setups+morning+pulse)"
                              " and exit; for a scheduled runner with a persisted DB")
+    parser.add_argument("--export-state", metavar="PATH",
+                        help="write the dashboard JSON snapshot to PATH and exit")
     parser.add_argument("--selftest", action="store_true",
                         help="verify data access + notification channel and exit")
     args = parser.parse_args(argv)
@@ -39,7 +41,9 @@ def main(argv=None) -> int:
     from .daemon import Daemon
     daemon = Daemon(cfg)
     try:
-        if args.cron:
+        if args.export_state:
+            daemon.export_state(args.export_state)
+        elif args.cron:
             daemon.run_cron()
         elif args.once:
             daemon.run_once()
