@@ -33,6 +33,9 @@ concurrency:
   group: oljan-cron             # never let two runs race the state DB
   cancel-in-progress: false
 
+permissions:
+  contents: write               # allow pushing the dashboard state branch
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -75,3 +78,19 @@ jobs:
         with:
           path: data
           key: oljan-state-${{ github.run_id }}
+
+      # Publish the dashboard snapshot to a dedicated `state` branch (a clean
+      # orphan holding only state.json) that the Vercel app reads. Force-push
+      # keeps the branch a single file with no history bloat.
+      - name: Publish dashboard state
+        if: always()
+        run: |
+          [ -f state.json ] || { echo "no state.json; skipping"; exit 0; }
+          tmp=$(mktemp -d); cp state.json "$tmp/"; cd "$tmp"
+          git init -q && git checkout -q -b state
+          git add state.json
+          git -c user.name=oljan-bot -c user.email=oljan-bot@users.noreply.github.com \
+            commit -qm "state $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" state:state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
