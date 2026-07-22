@@ -46,8 +46,11 @@ async function fromOanda() {
 async function fromYahoo() {
   for (const host of YAHOO_HOSTS) {
     try {
-      const url = `https://${host}/v8/finance/chart/BZ%3DF` +
-        `?interval=5m&range=5d&includePrePost=false`;
+      // 2d (not 5d): enough for prior-day levels + adaptive RSI, but far less
+      // cluttered than a 5-day 5m tape and fewer stale overnight/roll gaps.
+      const sym = process.env.PRICE_YAHOO_SYMBOL || "BZ=F"; // e.g. "CL=F" for WTI
+      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(sym)}` +
+        `?interval=5m&range=2d&includePrePost=false`;
       const r = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
         next: { revalidate: 15 },
