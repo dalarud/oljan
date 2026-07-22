@@ -397,6 +397,15 @@ historical:
   horizons_hours: [0.25, 0.5, 1, 2, 4]
   min_sample_for_stats: 5       # below this, historical confidence is "low"
 
+momentum:
+  # Price-move alerts independent of headlines: a sustained move over the
+  # window fires even when no new story exists (news-quiet grinds are
+  # information too — especially what a mean-reversion trader must NOT fade).
+  enabled: true
+  window_minutes: 45
+  min_pct: 0.6                 # minimum move to alert
+  atr_mult: 1.5                # or this many ATRs, whichever is larger
+  cooldown_minutes: 60
 notifications:
   channel: "ntfy"               # ntfy | telegram | console
   verbosity: "compact"          # compact (short, glanceable) | full (all detail)
@@ -410,6 +419,9 @@ notifications:
   # (a genuine escalation still gets through).
   topic_cooldown_minutes: 45
   topic_escalation_delta: 15
+  # A story that keeps DRIVING PRICE breaks through the cooldown even with
+  # the same wording: re-alert if price moved this % since the last alert.
+  topic_price_escalation_pct: 0.7
   # Quiet hours are evaluated in this timezone (DST-aware). Windows may wrap
   # midnight. During quiet hours NO pushes go out (events, pulse, heartbeat,
   # watchdog) — events are still collected & stored so the morning report can

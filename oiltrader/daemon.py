@@ -97,6 +97,8 @@ class Daemon:
             "notifications.topic_cooldown_minutes", 45) * 60
         self.topic_escalation_delta = cfg.get(
             "notifications.topic_escalation_delta", 15)
+        self.topic_price_esc_pct = cfg.get(
+            "notifications.topic_price_escalation_pct", 0.7)
         self.max_news_age_min = cfg.get("news.max_age_minutes", 360)
         self.cluster_sim = cfg.get("news.cluster_similarity", 0.4)
         self.collector_timeout = cfg.get("news.collector_timeout_seconds", 25)
@@ -232,6 +234,7 @@ class Daemon:
             self.storage.set_meta("daily_done_date", today)
         self._safe(self._task_market, None, reschedule=False)
         self._safe(self._task_market_fast, None, reschedule=False)  # fresh 5m + setups
+        self._safe(self._check_momentum, None, reschedule=False)  # move w/o headline
         self._safe(self._task_news, None, reschedule=False)
         self._safe(self._task_mature, None, reschedule=False)
         if self.morning_enabled:
@@ -405,6 +408,72 @@ class Daemon:
         ctx.source = "yahoo"
         self._chart_cache.setdefault(sym, {})[iv] = ctx
         self._check_setups()
+        self._check_momentum()
+
+    def _check_momentum(self) -> None:
+        """Alert when price makes a sustained move regardless of headlines.
+
+        Fills the gap where the tape runs for an hour on an old story: the
+        engine only alerted on NEW headlines, so a news-quiet grind produced
+        silence. A material move over the window is information in itself —
+        especially for a mean-reversion trader who must NOT fade it."""
+        if not self.cfg.get("momentum.enabled", True):
+            return
+        if self.notifier.in_quiet_hours():
+            return
+        df = self.storage.get_candles(self.primary, self.analysis_tf)
+        if df is None or df.empty or len(df) < 20:
+            return
+        import pandas as pd
+        last_ts = df.index[-1]
+        if getattr(last_ts, "tzinfo", None) is None:
+            last_ts = last_ts.tz_localize("UTC")
+        if (datetime.now(timezone.utc) - last_ts).total_seconds() > 20 * 60:
+            return  # feed resting; a stale "move" is old news
+        win = self.cfg.get("momentum.window_minutes", 45)
+        past = df[df.index <= df.index[-1] - pd.Timedelta(minutes=win)]
+        base = float(past["close"].iloc[-1]) if not past.empty \
+            else float(df["close"].iloc[0])
+        now_p = float(df["close"].iloc[-1])
+        if base <= 0:
+            return
+        pct = (now_p - base) / base * 100.0
+        chart = self._primary_chart(self.primary)
+        atr_pct = (chart.atr / chart.price * 100.0) if chart and chart.price else 0.0
+        thr = max(self.cfg.get("momentum.min_pct", 0.6),
+                  self.cfg.get("momentum.atr_mult", 1.5) * atr_pct)
+        if abs(pct) < thr:
+            return
+        cooldown = self.cfg.get("momentum.cooldown_minutes", 60) * 60
+        prev = self.storage.get_meta("momentum_last_ts")
+        try:
+            if prev and time.time() - float(prev) < cooldown:
+                return
+        except (TypeError, ValueError):
+            pass
+        from datetime import timedelta
+        recent = [e for e in self.storage.recent_events(
+            datetime.now(timezone.utc) - timedelta(minutes=win))
+            if e.get("source") not in ("seed", None)]
+        name = self.cfg.primary_instrument.get("name", self.primary)
+        off = self.analyzer.broker_offset
+        arrow, word = ("🚀", "UPP") if pct > 0 else ("🔻", "NED")
+        driver = (f"{len(recent)} färska rubriker i fönstret."
+                  if recent else
+                  "INGEN ny rubrik i fönstret – flödesdriven rörelse "
+                  "(premie/positionering).")
+        style = ""
+        if str((self.cfg.get("trader_profile", {}) or {}).get("style", "")
+               ).lower() == "mean_reversion":
+            style = ("\n🔁 Din stil: fadea INTE detta läge – vänta på "
+                     "RSI-reclaim + avvisning innan mottrend, eller handla "
+                     "reversion MED rörelsens riktning på nästa rekyl.")
+        msg = (f"{arrow} *MOMENTUM {word}* {pct:+.1f}% på {win} min – "
+               f"{name} {now_p + off:.2f}\n{driver}{style}")
+        if self.notifier.send_ambient(msg):
+            self.storage.set_meta("momentum_last_ts", str(time.time()))
+            log.info("MOMENTUM alert %s %.2f%% (%d headlines in window)",
+                     word, pct, len(recent))
 
     def _recent_news_bias(self, minutes: int = 20) -> float:
         """Net directional bias of substantial events in the last `minutes`."""
@@ -652,11 +721,14 @@ class Daemon:
         except Exception:
             return None
 
-    def _topic_suppressed(self, event, conviction: int) -> bool:
+    def _topic_suppressed(self, event, conviction: int,
+                          price: float | None = None) -> bool:
         """True if we've alerted this (category, direction) recently without a
         meaningful escalation — collapses a running story into one alert instead
-        of re-firing every time it re-clusters. A materially higher conviction
-        (a genuine escalation) still gets through."""
+        of re-firing every time it re-clusters. Two escalations break through:
+        materially higher conviction, OR the PRICE having moved materially since
+        the last alert (a story that keeps driving the tape is new information
+        even if the headline wording is the same)."""
         if event.direction == "neutral":
             return False
         key = f"topic_last:{event.category}:{event.direction}"
@@ -664,13 +736,20 @@ class Daemon:
         prev = self.storage.get_meta(key)
         if prev:
             try:
-                pts, pconv = prev.split(":")
-                if (now - float(pts) < self.topic_cooldown_s
-                        and conviction < float(pconv) + self.topic_escalation_delta):
+                parts = prev.split(":")
+                pts, pconv = float(parts[0]), float(parts[1])
+                pprice = float(parts[2]) if len(parts) > 2 and parts[2] else None
+                price_moved = (price is not None and pprice
+                               and abs(price - pprice) / pprice * 100
+                               >= self.topic_price_esc_pct)
+                if (now - pts < self.topic_cooldown_s
+                        and conviction < pconv + self.topic_escalation_delta
+                        and not price_moved):
                     return True
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, IndexError):
                 pass
-        self.storage.set_meta(key, f"{now}:{conviction}")
+        tail = f":{price:.4f}" if isinstance(price, (int, float)) else ""
+        self.storage.set_meta(key, f"{now}:{conviction}{tail}")
         return False
 
     def _handle_event(self, event, chart, mtf=None) -> None:
@@ -691,7 +770,9 @@ class Daemon:
                  event.relevance, event.substance, event.manipulation,
                  event.n_sources, should_notify, event.item.title[:80])
 
-        if should_notify and self._topic_suppressed(event, analysis.conviction):
+        if should_notify and self._topic_suppressed(
+                event, analysis.conviction,
+                chart.price if chart is not None else None):
             log.info("  -> topic-cooldown: same %s/%s recently alerted; suppressing",
                      event.category, event.direction)
             should_notify = False

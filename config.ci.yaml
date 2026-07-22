@@ -302,6 +302,12 @@ historical:
   - 2
   - 4
   min_sample_for_stats: 5
+momentum:
+  enabled: true
+  window_minutes: 45
+  min_pct: 0.6
+  atr_mult: 1.5
+  cooldown_minutes: 60
 notifications:
   channel: telegram
   verbosity: compact
@@ -311,6 +317,7 @@ notifications:
   dedup_minutes: 90
   topic_cooldown_minutes: 45
   topic_escalation_delta: 15
+  topic_price_escalation_pct: 0.7
   timezone: Europe/Stockholm
   quiet_hours:
   - 22:00-06:00

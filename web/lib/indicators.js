@@ -18,6 +18,14 @@ export function rsi(closes, period = 14) {
   return 100 - 100 / (1 + ag / al);
 }
 
+export function ema(closes, period) {
+  if (!closes || closes.length < period) return null;
+  const k = 2 / (period + 1);
+  let e = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < closes.length; i++) e = closes[i] * k + e * (1 - k);
+  return e;
+}
+
 export function atr(candles, period = 14) {
   if (!candles || candles.length < period + 1) return null;
   const trs = [];

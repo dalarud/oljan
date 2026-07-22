@@ -5,7 +5,7 @@ import TradingViewWidget from "../components/TradingViewWidget";
 import RiskCalc from "../components/RiskCalc";
 import ScoreViz from "../components/ScoreViz";
 import Countdown from "../components/Countdown";
-import { rsi, atr, computeLevels } from "../lib/indicators";
+import { rsi, atr, ema, computeLevels } from "../lib/indicators";
 
 const LiveChart = dynamic(() => import("../components/LiveChart"), { ssr: false });
 
@@ -75,10 +75,15 @@ export default function Page() {
   const live = useMemo(() => {
     if (!candles || candles.length < 30) return null;
     const closes = candles.map((c) => c.c);
+    const eFast = ema(closes, 12), eSlow = ema(closes, 26);
+    const trend = eFast != null && eSlow != null
+      ? (eFast > eSlow * 1.0003 ? "up" : eFast < eSlow * 0.9997 ? "down" : "flat")
+      : "flat";
     return {
       price: closes[closes.length - 1],
       rsi: rsi(closes),
       atr: atr(candles),
+      trend,
       levels: computeLevels(candles),
       lastTs: candles[candles.length - 1].t,
     };
@@ -123,10 +128,27 @@ export default function Page() {
       }
     }
     if (!setup) return;
-    const msg = `SETUP ${setup.side} · RSI-reclaim ${Math.round(prev)}→${Math.round(live.rsi)} ` +
+    // Trend/regime guard: a counter-trend reversion (short in an uptrend or
+    // long in a downtrend) must present itself as a WARNING, not a signal —
+    // RSI can stay pinned in a trending, headline-driven market.
+    const counterTrend =
+      (setup.side === "SÄLJ" && live.trend === "up") ||
+      (setup.side === "KÖP" && live.trend === "down");
+    // Fresh-headline guard: recent same-direction intel = momentum, not reversion.
+    const winSec = 30 * 60;
+    const freshOpp = (s?.events || []).filter((e) =>
+      e.ts && e.ts > now / 1000 - winSec &&
+      ((setup.side === "SÄLJ" && e.dir === "bullish") ||
+        (setup.side === "KÖP" && e.dir === "bearish"))).length;
+    let prefix = "";
+    if (counterTrend)
+      prefix = `⚠️ MOTTREND (trend ${live.trend}${s?.regime ? `, regim ${s.regime}` : ""}) – litet/tajt eller avstå · `;
+    if (freshOpp > 0)
+      prefix += `⚠️ ${freshOpp} färsk motstående rubrik – momentum, fadea inte · `;
+    const msg = `${prefix}SETUP ${setup.side} · RSI-reclaim ${Math.round(prev)}→${Math.round(live.rsi)} ` +
       `vid ${setup.at.label} ${setup.at.v} · pris ${live.price.toFixed(2)}` +
       (setup.target ? ` · mål ${Number(setup.target).toFixed(2)}` : "");
-    setBanner({ ...setup, msg, ts: now });
+    setBanner({ ...setup, msg, ts: now, warn: counterTrend || freshOpp > 0 });
     if (alertsOn) {
       beep(audioRef.current);
       try {
@@ -134,7 +156,37 @@ export default function Page() {
           new Notification("Oljan – setup", { body: msg });
       } catch {}
     }
-  }, [live, liveFresh, alertsOn]);
+  }, [live, liveFresh, alertsOn, s]);
+
+  // ---- browser momentum alert: sustained move, headline or not -------------
+  const momCooldownRef = useRef(0);
+  useEffect(() => {
+    if (!candles || candles.length < 12 || !liveFresh || !live) return;
+    const nowSec = candles[candles.length - 1].t;
+    const winMin = 45;
+    const past = candles.filter((c) => c.t <= nowSec - winMin * 60);
+    const base = past.length ? past[past.length - 1].c : candles[0].c;
+    if (!base) return;
+    const pct = ((live.price - base) / base) * 100;
+    const thr = Math.max(0.5, live.atr ? (1.5 * live.atr / live.price) * 100 : 0);
+    if (Math.abs(pct) < thr) return;
+    if (Date.now() - momCooldownRef.current < 45 * 60 * 1000) return;
+    momCooldownRef.current = Date.now();
+    const up = pct > 0;
+    const fresh = (s?.events || []).filter((e) => e.ts && e.ts > nowSec - winMin * 60).length;
+    const msg = `MOMENTUM ${up ? "UPP" : "NED"} ${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% på ${winMin}m · ` +
+      `pris ${live.price.toFixed(2)} · ` +
+      (fresh ? `${fresh} färska rubriker` : "ingen ny rubrik – flödesdrivet") +
+      ` · fadea INTE utan reclaim`;
+    setBanner({ side: up ? "MOMENTUM ↑" : "MOMENTUM ↓", cls: up ? "bull" : "bear", msg, warn: true });
+    if (alertsOn) {
+      beep(audioRef.current);
+      try {
+        if (typeof Notification !== "undefined" && Notification.permission === "granted")
+          new Notification("Oljan – momentum", { body: msg });
+      } catch {}
+    }
+  }, [candles, live, liveFresh, alertsOn, s]);
 
   const enableAlerts = async () => {
     try {
@@ -163,6 +215,7 @@ export default function Page() {
               : (s ? s.instrument : "laddar…")}
             {displayRsi != null ? ` · RSI ${displayRsi}` : ""}
             {live?.atr != null ? ` · ATR ${live.atr.toFixed(2)}` : ""}
+            {live?.trend ? ` · trend ${live.trend === "up" ? "↑" : live.trend === "down" ? "↓" : "→"}` : ""}
           </div>
         </div>
         {s && <span className={`pill ${dirClass(s.bias)}`}>{biasLabel(s.bias)}</span>}
