@@ -6,6 +6,7 @@ import RiskCalc from "../components/RiskCalc";
 import ScoreViz from "../components/ScoreViz";
 import Countdown from "../components/Countdown";
 import Synthesis from "../components/Synthesis";
+import CertMode from "../components/CertMode";
 import { rsi, atr, ema, computeLevels, rsiBands } from "../lib/indicators";
 import { buildSynthesis } from "../lib/synthesis";
 
@@ -452,6 +453,9 @@ export default function Page() {
           {/* 8. RISKKALKYLATOR */}
           <RiskCalc price={live?.price} atrVal={live?.atr} leverage={10}
             target={live?.levels?.resistance?.[0]?.v} />
+
+          {/* 8b. CERTIFIKAT-LÄGE — Avanza BULL/BEAR on the Brent future */}
+          <CertMode futCandles={splicedCandles} />
 
           {/* 9. UNDERRÄTTELSEFLÖDE */}
           <section className="ol-card">
