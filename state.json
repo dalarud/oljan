@@ -1,0 +1,179 @@
+{
+  "updated_at": "2026-09-04T22:23:27+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 102.36,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 148,
+  "scale_factor": 1.823774,
+  "rsi": 52,
+  "trend": {
+    "5m": "sideways",
+    "1h": "up"
+  },
+  "bias": "bullish",
+  "regime": "supply-risk",
+  "supply_corroboration": 2,
+  "levels": {
+    "resistance": [
+      {
+        "label": "rund",
+        "v": 102.5
+      },
+      {
+        "label": "nivå",
+        "v": 102.68
+      },
+      {
+        "label": "dagshögsta",
+        "v": 102.88
+      }
+    ],
+    "support": [
+      {
+        "label": "rund",
+        "v": 102.0
+      },
+      {
+        "label": "nivå",
+        "v": 101.71
+      },
+      {
+        "label": "VWAP",
+        "v": 101.39
+      }
+    ],
+    "pivot": 101.39,
+    "pdh": 103.35,
+    "pdl": 101.29
+  },
+  "plan": [
+    "*Regim:* Utbudsrisk (2 källor, VERIFIERA fysisk störning) – köp dippar med trenden.",
+    "• Bas: köp retest 102.00/101.39 → mål 102.50/102.68",
+    "• ↑ ny bekräftad störning + brott 103.35 → 104.00",
+    "• ↓ under 102.00 utan ny störning → fade mot 101.71",
+    "🔁 Din stil: RSI 52 · köp RSI<30 vid stöd 102.00 (med trend)→101.39; korta RSI>70 bara vid 102.68 litet/tajt · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1788552406,
+      "dir": "bullish",
+      "title": "Oil Holds Gains",
+      "url": "https://www.rigzone.com/news/wire/oil_holds_gains-04-sep-2026-184547-article/?rss=true",
+      "cat": "geopolitical",
+      "rel": 7.0,
+      "sub": 0.47
+    },
+    {
+      "ts": 1788525000,
+      "dir": "bullish",
+      "title": "The Iran War Has Put Venezuela’s Oil Back in the Spotlight",
+      "url": "https://oilprice.com/Energy/Energy-General/The-Iran-War-Has-Put-Venezuelas-Oil-Back-in-the-Spotlight.html",
+      "cat": "geopolitical",
+      "rel": 11.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1788525000,
+      "dir": "bullish",
+      "title": "WTI Back Above $91 as War Premium Returns",
+      "url": "https://oilprice.com/Energy/Energy-General/WTI-Back-Above-91-as-War-Premium-Returns.html",
+      "cat": "geopolitical",
+      "rel": 8.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1788525000,
+      "dir": "bullish",
+      "title": "Europe Gas Prices Head for Fourth Straight Weekly Gain",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Europe-Gas-Prices-Head-for-Fourth-Straight-Weekly-Gain.html",
+      "cat": "geopolitical",
+      "rel": 7.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1788505200,
+      "dir": "bullish",
+      "title": "ADNOC Keeps Loading LNG as Hormuz Risks Intensify",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/ADNOC-Keeps-Loading-LNG-as-Hormuz-Risks-Intensify.html",
+      "cat": "geopolitical",
+      "rel": 5.5,
+      "sub": 0.5
+    },
+    {
+      "ts": 1788525000,
+      "dir": "bullish",
+      "title": "How Much Oil Is Really Getting Through the Strait of Hormuz?",
+      "url": "https://oilprice.com/Energy/Energy-General/How-Much-Oil-Is-Really-Getting-Through-the-Strait-of-Hormuz.html",
+      "cat": "geopolitical",
+      "rel": 5.5,
+      "sub": 0.4
+    },
+    {
+      "ts": 1788515100,
+      "dir": "bullish",
+      "title": "Argentina Targets Falklands Oil Drillers With Tougher Sanctions",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Argentina-Targets-Falklands-Oil-Drillers-With-Tougher-Sanctions.html",
+      "cat": "geopolitical",
+      "rel": 5.0,
+      "sub": 0.35
+    },
+    {
+      "ts": 1788533822,
+      "dir": "neutral",
+      "title": "USA Crude Oil Stocks Drop Week on Week",
+      "url": "https://www.rigzone.com/news/usa_crude_oil_stocks_drop_week_on_week-04-sep-2026-184545-article/?rss=true",
+      "cat": "inventory",
+      "rel": 4.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1788539400,
+      "dir": "neutral",
+      "title": "Rosneft CEO: China Calls The Shots in Oil Markets, Not OPEC",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Rosneft-CEO-China-Calls-The-Shots-in-Oil-Markets-Not-OPEC.html",
+      "cat": "opec",
+      "rel": 5.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1788555660,
+      "dir": "bullish",
+      "title": "Oil Posts Biggest Weekly Gain Since July as U.S.-Iran Conflict Rebuilds War Premium - EnergyNow.com",
+      "url": "https://news.google.com/rss/articles/CBMiswFBVV95cUxNUFF6MEh1aU5JXzAyRzduQkd2bW9vWjBTSGlJblVMdGRnejBUUFdseHBSWXJsZjk3aWtoa3hVcjhpaFZiQ0prY2NESHAtWTFPTUtKcGdDblNlNV9vNkRybG1YNGduSG4tRno5cnNXdVhud2RRaTVjV1NlUWI1TmYwNThZcUlkRzFZSUo3TkhUQmtDV243OWpxY1JxQ25wUkl1YzNYYmJndXppLXd6VmVVR2NaSQ?oc=5",
+      "cat": "geopolitical",
+      "rel": 5.0,
+      "sub": 0.23
+    },
+    {
+      "ts": 1788533401,
+      "dir": "bullish",
+      "title": "Oil prices are expected to rise in the second week of September as global crude prices are pushed higher with tensions in the Middle East and disruptions around the Strait of Hormu",
+      "url": "https://news.google.com/rss/articles/CBMi1wFBVV95cUxOUXdDbi14ZTJnQ1FTT2kxclFVdHRmNGtFbTZSaEd0OFd1Sl82T2ZmYU5OMDg3WkVHS3NoRzVJNklhYXBRQjhXT3VlNGl2WDQ0aFdfWUhaaWtpS3gtNVE0RV9xMHM5VWdENmt1RUU3YWh0STdGNGRQS2hFY2tJY2poNEZWQmJaYnNMWS1kT1NVUnpPX1h3NTBSNFRhREpjSXFzZjM5dzlxYnhVeVAtamRqNXNMZVF1NXc1NTY5SGZIV3RXdDF4bWZzYW9vaGJ5M29nV1owUF9RMA?oc=5",
+      "cat": "geopolitical",
+      "rel": 3.0,
+      "sub": 0.27
+    },
+    {
+      "ts": 1788543000,
+      "dir": "neutral",
+      "title": "Citadel Eyes U.S. Shale as Oil Trading Moves Closer to the Wellhead",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Citadel-Eyes-US-Shale-as-Oil-Trading-Moves-Closer-to-the-Wellhead.html",
+      "cat": "inventory",
+      "rel": 2.0,
+      "sub": 0.4
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 102.36 · trend sideways\nNetto-bias: *STARK HAUSSE 🟢🟢* (bull 2 / bear 0, styrka +0.89)\nFrämsta drivkraft: geopolitical · 3 stories, 3 källor\nStarkast: \"Oil Holds Gains\" (bullish, rigzone.com)\n_Översikt, ej finansiell rådgivning._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 1493,
+    "hit_pct": 54,
+    "median_pct": 0.1,
+    "horizon_h": 1.0,
+    "category": "geopolitical",
+    "direction": "bullish"
+  }
+}
