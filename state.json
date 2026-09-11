@@ -1,0 +1,179 @@
+{
+  "updated_at": "2026-09-11T22:40:42+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 111.89,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 165,
+  "scale_factor": 1.823774,
+  "rsi": 54,
+  "trend": {
+    "5m": "up",
+    "1h": "sideways"
+  },
+  "bias": "bullish",
+  "regime": "supply-risk",
+  "supply_corroboration": 2,
+  "levels": {
+    "resistance": [
+      {
+        "label": "nivå",
+        "v": 111.94
+      },
+      {
+        "label": "nivå",
+        "v": 112.32
+      },
+      {
+        "label": "dagshögsta",
+        "v": 112.53
+      }
+    ],
+    "support": [
+      {
+        "label": "nivå",
+        "v": 111.6
+      },
+      {
+        "label": "rund",
+        "v": 111.0
+      },
+      {
+        "label": "PDL",
+        "v": 110.65
+      }
+    ],
+    "pivot": 111.52,
+    "pdh": 115.46,
+    "pdl": 110.65
+  },
+  "plan": [
+    "*Regim:* Utbudsrisk (2 källor, VERIFIERA fysisk störning) – köp dippar med trenden.",
+    "• Bas: köp retest 111.60/111.52 → mål 111.94/112.32",
+    "• ↑ ny bekräftad störning + brott 115.46 → 116.00",
+    "• ↓ under 111.60 utan ny störning → fade mot 111.00",
+    "🔁 Din stil: RSI 54 · köp RSI<30 vid stöd 111.60 (med trend)→111.52; korta RSI>70 bara vid 112.32 litet/tajt · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1789164000,
+      "dir": "bullish",
+      "title": "Europe's \"Less\" Is Doing More Than Anyone Gives It Credit For",
+      "url": "https://oilprice.com/Energy/Energy-General/Europes-Less-Is-Doing-More-Than-Anyone-Gives-It-Credit-For.html",
+      "cat": "inventory",
+      "rel": 13.3,
+      "sub": 0.58
+    },
+    {
+      "ts": 1789129800,
+      "dir": "bullish",
+      "title": "WTI Breaks $100 as Middle East Supply Crisis Deepens",
+      "url": "https://oilprice.com/Energy/Energy-General/WTI-Breaks-100-as-Middle-East-Supply-Crisis-Deepens.html",
+      "cat": "geopolitical",
+      "rel": 9.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1789115181,
+      "dir": "bullish",
+      "title": "Gulf States Mull Hormuz Talks with Iran",
+      "url": "https://www.rigzone.com/news/wire/gulf_states_mull_hormuz_talks_with_iran-11-sep-2026-184591-article/?rss=true",
+      "cat": "geopolitical",
+      "rel": 5.5,
+      "sub": 0.46
+    },
+    {
+      "ts": 1789142700,
+      "dir": "bullish",
+      "title": "Saudi Arabia’s Critical Oil Bypass Comes Under Threat",
+      "url": "https://oilprice.com/Energy/Crude-Oil/Saudi-Arabias-Critical-Oil-Bypass-Comes-Under-Threat.html",
+      "cat": "geopolitical",
+      "rel": 5.5,
+      "sub": 0.4
+    },
+    {
+      "ts": 1789129800,
+      "dir": "bullish",
+      "title": "Energy Aspects: Oil Market Has Reached an \"Inflection Point\"",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Energy-Aspects-Oil-Market-Has-Reached-an-Inflection-Point.html",
+      "cat": "geopolitical",
+      "rel": 7.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1789137000,
+      "dir": "bearish",
+      "title": "UAE Rethinks 5-Gigawatt AI Campus After Iran Targets US Assets in Gulf",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/UAE-Rethinks-5-Gigawatt-AI-Campus-After-Iran-Targets-US-Assets-in-Gulf.html",
+      "cat": "inventory",
+      "rel": 4.5,
+      "sub": 0.39
+    },
+    {
+      "ts": 1789136078,
+      "dir": "neutral",
+      "title": "USA Crude Oil Stocks Drop Week on Week",
+      "url": "https://www.rigzone.com/news/usa_crude_oil_stocks_drop_week_on_week-11-sep-2026-184600-article/?rss=true",
+      "cat": "inventory",
+      "rel": 4.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1789156800,
+      "dir": "bearish",
+      "title": "Trump's Grid Battery Ban Leaves Developers Guessing",
+      "url": "https://oilprice.com/Energy/Energy-General/Trumps-Grid-Battery-Ban-Leaves-Developers-Guessing.html",
+      "cat": "inventory",
+      "rel": 3.5,
+      "sub": 0.45
+    },
+    {
+      "ts": 1789140600,
+      "dir": "neutral",
+      "title": "IEA Sees 5.7 Million Bpd Oil Supply Plunge as Gulf Recovery Slips to 2027",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/IEA-Sees-57-Million-Bpd-Oil-Supply-Plunge-as-Gulf-Recovery-Slips-to-2027.html",
+      "cat": "inventory",
+      "rel": 3.5,
+      "sub": 0.4
+    },
+    {
+      "ts": 1789135200,
+      "dir": "neutral",
+      "title": "Debunking the Viral Claim That America Has Only 14 Days of Oil Left",
+      "url": "https://oilprice.com/Energy/Crude-Oil/Debunking-the-Viral-Claim-That-America-Has-Only-14-Days-of-Oil-Left.html",
+      "cat": "inventory",
+      "rel": 3.5,
+      "sub": 0.4
+    },
+    {
+      "ts": 1789146276,
+      "dir": "bullish",
+      "title": "Drone Strikes Hit Saudi Arabia’s Vital East-West Oil Pipeline",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Drone-Strikes-Hit-Saudi-Arabias-Vital-East-West-Oil-Pipeline.html",
+      "cat": "geopolitical",
+      "rel": 4.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1789158064,
+      "dir": "neutral",
+      "title": "White House Weighs Defense Production Act as U.S. Refineries Maxed Out",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/White-House-Weighs-Defense-Production-Act-as-US-Refineries-Maxed-Out.html",
+      "cat": "inventory",
+      "rel": 2.0,
+      "sub": 0.4
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 111.89 · trend up\nNetto-bias: *STARK HAUSSE 🟢🟢* (bull 1 / bear 1, styrka +0.58)\nFrämsta drivkraft: inventory · 4 stories, 2 källor\nStarkast: \"Europe's \"Less\" Is Doing More Than Anyone Gives It Credit For\" (bullish, oilprice.com)\n_Översikt, ej finansiell rådgivning._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 56,
+    "hit_pct": 50,
+    "median_pct": 0.04,
+    "horizon_h": 1.0,
+    "category": "inventory",
+    "direction": "bullish"
+  }
+}
