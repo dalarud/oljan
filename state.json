@@ -1,0 +1,152 @@
+{
+  "updated_at": "2026-09-25T23:01:29+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 108.77,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 186,
+  "scale_factor": 1.823774,
+  "rsi": 47,
+  "trend": {
+    "5m": "sideways",
+    "1h": "down"
+  },
+  "bias": "bullish",
+  "regime": "supply-risk",
+  "supply_corroboration": 1,
+  "levels": {
+    "resistance": [
+      {
+        "label": "rund",
+        "v": 109.0
+      },
+      {
+        "label": "VWAP",
+        "v": 109.12
+      },
+      {
+        "label": "nivå",
+        "v": 109.76
+      }
+    ],
+    "support": [
+      {
+        "label": "rund",
+        "v": 108.5
+      },
+      {
+        "label": "nivå",
+        "v": 108.12
+      },
+      {
+        "label": "rund",
+        "v": 108.0
+      }
+    ],
+    "pivot": 109.12,
+    "pdh": 114.37,
+    "pdl": 110.39
+  },
+  "plan": [
+    "*Regim:* Utbudsrisk (1 källor, VERIFIERA fysisk störning) – köp dippar med trenden.",
+    "• Bas: köp retest 108.50/109.12 → mål 109.00/109.12",
+    "• ↑ ny bekräftad störning + brott 114.37 → 115.00",
+    "• ↓ under 108.50 utan ny störning → fade mot 108.12",
+    "🔁 Din stil: RSI 47 · köp RSI<30 vid stöd 108.50 (med trend)→109.12; korta RSI>70 bara vid 109.12 litet/tajt · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1790341200,
+      "dir": "bullish",
+      "title": "Aramco Restores East-West Pipeline as War Risk Closes In on Yanbu",
+      "url": "https://oilprice.com/Energy/Energy-General/Aramco-Restores-East-West-Pipeline-as-War-Risk-Closes-In-on-Yanbu.html",
+      "cat": "geopolitical",
+      "rel": 9.5,
+      "sub": 0.4
+    },
+    {
+      "ts": 1790341200,
+      "dir": "bullish",
+      "title": "U.S.-Iran Talks Revive June Plan for Ending Hormuz Standoff",
+      "url": "https://oilprice.com/Energy/Energy-General/US-Iran-Talks-Revive-June-Plan-for-Ending-Hormuz-Standoff.html",
+      "cat": "geopolitical",
+      "rel": 10.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1790341200,
+      "dir": "bullish",
+      "title": "WTI Whipsaws as Hormuz Hopes Collide With Diesel Crunch",
+      "url": "https://oilprice.com/Energy/Energy-General/WTI-Whipsaws-as-Hormuz-Hopes-Collide-With-Diesel-Crunch.html",
+      "cat": "geopolitical",
+      "rel": 5.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1790352900,
+      "dir": "bullish",
+      "title": "Why WTI Is Suddenly Trading $12 Below Brent",
+      "url": "https://oilprice.com/Energy/Crude-Oil/Why-WTI-Is-Suddenly-Trading-12-Below-Brent.html",
+      "cat": "geopolitical",
+      "rel": 3.0,
+      "sub": 0.51
+    },
+    {
+      "ts": 1790359200,
+      "dir": "neutral",
+      "title": "Venezuela Oil Output Could Hit 1.8 Million Bpd By 2030, Rystad Says",
+      "url": "https://oilprice.com/Energy/Crude-Oil/Venezuela-Oil-Output-Could-Hit-18-Million-Bpd-By-2030-Rystad-Says.html",
+      "cat": "supply",
+      "rel": 3.8,
+      "sub": 0.4
+    },
+    {
+      "ts": 1790321400,
+      "dir": "bullish",
+      "title": "Hormuz Tanker Transits Crash to Single Digits as Crisis Deepens",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Hormuz-Tanker-Transits-Crash-to-Single-Digits-as-Crisis-Deepens.html",
+      "cat": "geopolitical",
+      "rel": 3.0,
+      "sub": 0.39
+    },
+    {
+      "ts": 1790345700,
+      "dir": "neutral",
+      "title": "Italy Pushes Refineries to Raise Fuel Output Amid Price Surge",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Italy-Pushes-Refineries-to-Raise-Fuel-Output-Amid-Price-Surge.html",
+      "cat": "supply",
+      "rel": 3.8,
+      "sub": 0.28
+    },
+    {
+      "ts": 1790366596,
+      "dir": "neutral",
+      "title": "Oil Falls on Signs of Iran Progress",
+      "url": "https://www.rigzone.com/news/wire/oil_falls_on_signs_of_iran_progress-25-sep-2026-184710-article/?rss=true",
+      "cat": "geopolitical",
+      "rel": 2.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1790344800,
+      "dir": "neutral",
+      "title": "Beijing's Iran Oil Trade Draws Fresh Criticism From Capitol Hill",
+      "url": "https://oilprice.com/Geopolitics/International/Beijings-Iran-Oil-Trade-Draws-Fresh-Criticism-From-Capitol-Hill.html",
+      "cat": "geopolitical",
+      "rel": 2.5,
+      "sub": 0.28
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 108.77 · trend sideways\nNetto-bias: *neutral/blandat 🟡* (bull 0 / bear 0, styrka +0.00)\nFrämsta drivkraft: geopolitical · 1 stories, 1 källor\nStarkast: \"Oil Falls on Signs of Iran Progress\" (neutral, rigzone.com)\n_Översikt, ej finansiell rådgivning._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 1567,
+    "hit_pct": 54,
+    "median_pct": 0.1,
+    "horizon_h": 1.0,
+    "category": "geopolitical",
+    "direction": "bullish"
+  }
+}
