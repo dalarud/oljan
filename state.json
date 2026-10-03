@@ -1,0 +1,179 @@
+{
+  "updated_at": "2026-10-03T00:43:13+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 115.06,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 288,
+  "scale_factor": 1.823774,
+  "rsi": 65,
+  "trend": {
+    "5m": "up",
+    "1h": "up"
+  },
+  "bias": "bullish",
+  "regime": "supply-risk",
+  "supply_corroboration": 2,
+  "levels": {
+    "resistance": [
+      {
+        "label": "nivå",
+        "v": 115.15
+      },
+      {
+        "label": "rund",
+        "v": 115.5
+      },
+      {
+        "label": "rund",
+        "v": 116.0
+      }
+    ],
+    "support": [
+      {
+        "label": "rund",
+        "v": 115.0
+      },
+      {
+        "label": "nivå",
+        "v": 114.26
+      },
+      {
+        "label": "nivå",
+        "v": 113.61
+      }
+    ],
+    "pivot": 115.06,
+    "pdh": 115.19,
+    "pdl": 110.03
+  },
+  "plan": [
+    "*Regim:* Utbudsrisk (2 källor, VERIFIERA fysisk störning) – köp dippar med trenden.",
+    "• Bas: köp retest 115.00/115.06 → mål 115.15/115.50",
+    "• ↑ ny bekräftad störning + brott 115.19 → 116.00",
+    "• ↓ under 115.00 utan ny störning → fade mot 114.26",
+    "🔁 Din stil: RSI 65 · köp RSI<30 vid stöd 115.00 (med trend)→115.06; korta RSI>70 bara vid 115.50 litet/tajt · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1790952300,
+      "dir": "bullish",
+      "title": "WTI Whipsaws as Gulf Supply Improves and Middle East Risk Returns",
+      "url": "https://oilprice.com/Energy/Energy-General/WTI-Whipsaws-as-Gulf-Supply-Improves-and-Middle-East-Risk-Returns.html",
+      "cat": "geopolitical",
+      "rel": 10.0,
+      "sub": 0.46
+    },
+    {
+      "ts": 1790953200,
+      "dir": "bullish",
+      "title": "LNG Shipments Through Hormuz Hit Highest Level Since Iran War Began",
+      "url": "https://oilprice.com/Energy/Energy-General/LNG-Shipments-Through-Hormuz-Hit-Highest-Level-Since-Iran-War-Began.html",
+      "cat": "geopolitical",
+      "rel": 9.5,
+      "sub": 0.46
+    },
+    {
+      "ts": 1790954580,
+      "dir": "bearish",
+      "title": "G7 Moves to Release 100 Million Barrels to Counter Diesel Crisis",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/G7-Moves-to-Release-100-Million-Barrels-to-Counter-Diesel-Crisis.html",
+      "cat": "inventory",
+      "rel": 5.1,
+      "sub": 0.47
+    },
+    {
+      "ts": 1790952300,
+      "dir": "bullish",
+      "title": "U.S. Exit Leaves Iraq With a Militia Problem",
+      "url": "https://oilprice.com/Energy/Energy-General/US-Exit-Leaves-Iraq-With-a-Militia-Problem.html",
+      "cat": "geopolitical",
+      "rel": 5.0,
+      "sub": 0.46
+    },
+    {
+      "ts": 1790949600,
+      "dir": "bullish",
+      "title": "U.S. natural gas production reached a record high in July 2026",
+      "url": "https://www.eia.gov/todayinenergy/detail.php?id=68225",
+      "cat": "supply",
+      "rel": 3.8,
+      "sub": 0.58
+    },
+    {
+      "ts": 1790967600,
+      "dir": "bullish",
+      "title": "Iranian Oil Starts Flowing to Tajikistan Despite U.S. Sanctions Risk",
+      "url": "https://oilprice.com/Energy/Energy-General/Iranian-Oil-Starts-Flowing-to-Tajikistan-Despite-US-Sanctions-Risk.html",
+      "cat": "geopolitical",
+      "rel": 4.5,
+      "sub": 0.46
+    },
+    {
+      "ts": 1790952300,
+      "dir": "bullish",
+      "title": "The Kremlin Consolidates Power as Russia’s Economic Pain Mounts",
+      "url": "https://oilprice.com/Geopolitics/Europe/The-Kremlin-Consolidates-Power-as-Russias-Economic-Pain-Mounts.html",
+      "cat": "geopolitical",
+      "rel": 4.5,
+      "sub": 0.46
+    },
+    {
+      "ts": 1790951400,
+      "dir": "bullish",
+      "title": "U.S. Deploys Patriots to Shield Saudi Oil and Qatari Gas Facilities",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/US-Deploys-Patriots-to-Shield-Saudi-Oil-and-Qatari-Gas-Facilities.html",
+      "cat": "geopolitical",
+      "rel": 4.5,
+      "sub": 0.46
+    },
+    {
+      "ts": 1790937000,
+      "dir": "bullish",
+      "title": "JERA CEO Warns LNG Prices Have Further to Climb",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/JERA-CEO-Warns-LNG-Prices-Have-Further-to-Climb.html",
+      "cat": "geopolitical",
+      "rel": 4.5,
+      "sub": 0.46
+    },
+    {
+      "ts": 1790953529,
+      "dir": "neutral",
+      "title": "USA Crude Oil Stocks Rise Almost 1MM Barrels WoW",
+      "url": "https://www.rigzone.com/news/usa_crude_oil_stocks_rise_almost_1mm_barrels_wow-02-oct-2026-184765-article/?rss=true",
+      "cat": "inventory",
+      "rel": 4.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1790959845,
+      "dir": "bullish",
+      "title": "Dated Brent Above $120 Signals a Serious Oil Squeeze",
+      "url": "https://oilprice.com/Energy/Crude-Oil/Dated-Brent-Above-120-Signals-a-Serious-Oil-Squeeze.html",
+      "cat": "geopolitical",
+      "rel": 3.0,
+      "sub": 0.46
+    },
+    {
+      "ts": 1790976600,
+      "dir": "bullish",
+      "title": "Trump Says South Korea Deal Includes $8.4 Billion U.S. Oil Project",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Trump-Says-South-Korea-Deal-Includes-84-Billion-US-Oil-Project.html",
+      "cat": "supply",
+      "rel": 2.0,
+      "sub": 0.46
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 115.06 · trend up\n_Lugnt: inga relevanta nyheter i fönstret._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 1600,
+    "hit_pct": 54,
+    "median_pct": 0.1,
+    "horizon_h": 1.0,
+    "category": "geopolitical",
+    "direction": "bullish"
+  }
+}
