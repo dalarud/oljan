@@ -1,0 +1,179 @@
+{
+  "updated_at": "2026-10-09T22:52:28+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 116.69,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 177,
+  "scale_factor": 1.823774,
+  "rsi": 55,
+  "trend": {
+    "5m": "sideways",
+    "1h": "up"
+  },
+  "bias": "bullish",
+  "regime": "supply-risk",
+  "supply_corroboration": 2,
+  "levels": {
+    "resistance": [
+      {
+        "label": "nivå",
+        "v": 116.79
+      },
+      {
+        "label": "rund",
+        "v": 117.0
+      },
+      {
+        "label": "nivå",
+        "v": 117.34
+      }
+    ],
+    "support": [
+      {
+        "label": "VWAP",
+        "v": 116.5
+      },
+      {
+        "label": "nivå",
+        "v": 116.18
+      },
+      {
+        "label": "rund",
+        "v": 116.0
+      }
+    ],
+    "pivot": 116.5,
+    "pdh": 118.4,
+    "pdl": 115.17
+  },
+  "plan": [
+    "*Regim:* Utbudsrisk (2 källor, VERIFIERA fysisk störning) – köp dippar med trenden.",
+    "• Bas: köp retest 116.50/116.50 → mål 116.79/117.00",
+    "• ↑ ny bekräftad störning + brott 118.40 → 119.00",
+    "• ↓ under 116.50 utan ny störning → fade mot 116.18",
+    "🔁 Din stil: RSI 55 · köp RSI<30 vid stöd 116.50 (med trend)→116.50; korta RSI>70 bara vid 117.00 litet/tajt · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1791541800,
+      "dir": "bullish",
+      "title": "Hormuz Crisis Leaves EU Gas Storage Short Heading Into Winter",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Hormuz-Crisis-Leaves-EU-Gas-Storage-Short-Heading-Into-Winter.html",
+      "cat": "geopolitical",
+      "rel": 11.0,
+      "sub": 0.47
+    },
+    {
+      "ts": 1791563722,
+      "dir": "bullish",
+      "title": "Trump Puts Iran Strikes on Hold as Hurricane Threatens Oil Supply",
+      "url": "https://oilprice.com/Energy/Crude-Oil/Trump-Puts-Iran-Strikes-on-Hold-as-Hurricane-Threatens-Oil-Supply.html",
+      "cat": "geopolitical",
+      "rel": 11.0,
+      "sub": 0.39
+    },
+    {
+      "ts": 1791583200,
+      "dir": "bearish",
+      "title": "Why Record Crude Output Can’t Solve America’s Diesel Crisis",
+      "url": "https://oilprice.com/Energy/Crude-Oil/Why-Record-Crude-Output-Cant-Solve-Americas-Diesel-Crisis.html",
+      "cat": "inventory",
+      "rel": 5.8,
+      "sub": 0.47
+    },
+    {
+      "ts": 1791577800,
+      "dir": "bullish",
+      "title": "Hurricane Isaias Shuts In 71% of U.S. Gulf Oil Production",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Hurricane-Isaias-Shuts-In-71-of-US-Gulf-Oil-Production.html",
+      "cat": "supply",
+      "rel": 5.8,
+      "sub": 0.47
+    },
+    {
+      "ts": 1791576000,
+      "dir": "bullish",
+      "title": "5 Stocks Cashing In as $100 Oil Pushes Drivers Toward Electric",
+      "url": "https://oilprice.com/Energy/Energy-General/5-Stocks-Cashing-In-as-100-Oil-Pushes-Drivers-Toward-Electric.html",
+      "cat": "geopolitical",
+      "rel": 5.0,
+      "sub": 0.47
+    },
+    {
+      "ts": 1791545400,
+      "dir": "bullish",
+      "title": "Asian Refiners Ditch U.S. Oil as Supertanker Rates Hit $82 Million",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Asian-Refiners-Ditch-US-Oil-as-Supertanker-Rates-Hit-82-Million.html",
+      "cat": "geopolitical",
+      "rel": 5.0,
+      "sub": 0.47
+    },
+    {
+      "ts": 1791577685,
+      "dir": "bullish",
+      "title": "Oil Advances Amid War and Hurricane Risks",
+      "url": "https://www.rigzone.com/news/wire/oil_advances_amid_war_and_hurricane_risks-09-oct-2026-184819-article/?rss=true",
+      "cat": "geopolitical",
+      "rel": 6.0,
+      "sub": 0.35
+    },
+    {
+      "ts": 1791570607,
+      "dir": "bullish",
+      "title": "Category 2 Hurricane Isaias nears landfall, leading to production shut-ins",
+      "url": "https://www.eia.gov/todayinenergy/detail.php?id=68284",
+      "cat": "supply",
+      "rel": 4.0,
+      "sub": 0.51
+    },
+    {
+      "ts": 1791535518,
+      "dir": "bullish",
+      "title": "Saudi, UAE Join Push for SE Asian Oil Reserves",
+      "url": "https://www.rigzone.com/news/wire/saudi_uae_join_push_for_se_asian_oil_reserves-09-oct-2026-184808-article/?rss=true",
+      "cat": "opec",
+      "rel": 4.5,
+      "sub": 0.35
+    },
+    {
+      "ts": 1791581400,
+      "dir": "neutral",
+      "title": "Russia, Germany Add Diesel Supply as Fuel Market Scrambles for Barrels",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Russia-Germany-Add-Diesel-Supply-as-Fuel-Market-Scrambles-for-Barrels.html",
+      "cat": "inventory",
+      "rel": 3.5,
+      "sub": 0.4
+    },
+    {
+      "ts": 1791538200,
+      "dir": "neutral",
+      "title": "Australia Close to Finalizing Gas Reservation Plan for LNG Exporters",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Australia-Close-to-Finalizing-Gas-Reservation-Plan-for-LNG-Exporters.html",
+      "cat": "supply",
+      "rel": 3.5,
+      "sub": 0.4
+    },
+    {
+      "ts": 1791561600,
+      "dir": "bearish",
+      "title": "Pashinyan’s Nuclear U-Turn Gives Moscow an Opening in Armenia",
+      "url": "https://oilprice.com/Geopolitics/International/Pashinyans-Nuclear-U-Turn-Gives-Moscow-an-Opening-in-Armenia.html",
+      "cat": "inventory",
+      "rel": 4.0,
+      "sub": 0.28
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 116.69 · trend sideways\nNetto-bias: *svag hausse 🟢* (bull 3 / bear 1, styrka +0.39)\nFrämsta drivkraft: geopolitical · 5 stories, 2 källor\nStarkast: \"Why Record Crude Output Can’t Solve America’s Diesel Crisis\" (bearish, oilprice.com)\n_Översikt, ej finansiell rådgivning._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 1610,
+    "hit_pct": 54,
+    "median_pct": 0.1,
+    "horizon_h": 1.0,
+    "category": "geopolitical",
+    "direction": "bullish"
+  }
+}
