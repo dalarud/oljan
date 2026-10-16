@@ -1,0 +1,175 @@
+{
+  "updated_at": "2026-10-16T21:53:18+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 122.56,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 118,
+  "scale_factor": 1.823774,
+  "rsi": 53,
+  "trend": {
+    "5m": "sideways",
+    "1h": "up"
+  },
+  "bias": "bullish",
+  "regime": "mixed",
+  "supply_corroboration": 0,
+  "levels": {
+    "resistance": [
+      {
+        "label": "nivå",
+        "v": 122.88
+      },
+      {
+        "label": "rund",
+        "v": 123.0
+      }
+    ],
+    "support": [
+      {
+        "label": "nivå",
+        "v": 122.5
+      },
+      {
+        "label": "rund",
+        "v": 122.0
+      },
+      {
+        "label": "nivå",
+        "v": 121.82
+      }
+    ],
+    "pivot": 121.7,
+    "pdh": 119.02,
+    "pdl": 116.72
+  },
+  "plan": [
+    "*Regim:* Blandat – låt nivåerna leda, mindre storlek.",
+    "• Bas: range 122.50–122.88 runt 121.70",
+    "• ↑ brott 122.88 m. volym → 123.00",
+    "• ↓ brott 122.50 m. volym → 122.00",
+    "🔁 Din stil: RSI 53 · fade RSI>70@122.88 & RSI<30@122.50 → mitten 121.70 · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1792150200,
+      "dir": "neutral",
+      "title": "China’s Sufficient Gas Stocks Could Ease Winter Supply Concerns",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Chinas-Sufficient-Gas-Stocks-Could-Ease-Winter-Supply-Concerns.html",
+      "cat": "inventory",
+      "rel": 10.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1792134000,
+      "dir": "bullish",
+      "title": "Global Fuel Oil Shortage Deepens as Middle East and Russia Supplies Collapse",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Global-Fuel-Oil-Shortage-Deepens-as-Middle-East-and-Russia-Supplies-Collapse.html",
+      "cat": "geopolitical",
+      "rel": 10.5,
+      "sub": 0.35
+    },
+    {
+      "ts": 1792167180,
+      "dir": "bullish",
+      "title": "Oil Prices Are Stuck at $105 as Geopolitical Risks Mount",
+      "url": "https://oilprice.com/Energy/Oil-Prices/Oil-Prices-Are-Stuck-at-105-as-Geopolitical-Risks-Mount.html",
+      "cat": "supply",
+      "rel": 7.0,
+      "sub": 0.45
+    },
+    {
+      "ts": 1792168200,
+      "dir": "neutral",
+      "title": "Equatorial Guinea Rewrites Oil Law After Production Collapses 85%",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Equatorial-Guinea-Rewrites-Oil-Law-After-Production-Collapses-85.html",
+      "cat": "supply",
+      "rel": 6.8,
+      "sub": 0.4
+    },
+    {
+      "ts": 1792159763,
+      "dir": "neutral",
+      "title": "USA Crude Oil Stocks Drop Almost 9MM Barrels WoW",
+      "url": "https://www.rigzone.com/news/usa_crude_oil_stocks_drop_almost_9mm_barrels_wow-16-oct-2026-184869-article/?rss=true",
+      "cat": "inventory",
+      "rel": 4.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1792146600,
+      "dir": "bullish",
+      "title": "South Korea Turns Back to Coal as LNG Crisis Deepens",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/South-Korea-Turns-Back-to-Coal-as-LNG-Crisis-Deepens.html",
+      "cat": "geopolitical",
+      "rel": 4.5,
+      "sub": 0.35
+    },
+    {
+      "ts": 1792157400,
+      "dir": "bullish",
+      "title": "Iran War Set To Push PetroChina’s Trading Profit to Record $3 Billion",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Iran-War-Set-To-Push-PetroChinas-Trading-Profit-to-Record-3-Billion.html",
+      "cat": "geopolitical",
+      "rel": 5.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1792161000,
+      "dir": "bullish",
+      "title": "Global Gas Crunch Makes Europe’s Remaining Coal Plants Profitable",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Global-Gas-Crunch-Makes-Europes-Remaining-Coal-Plants-Profitable.html",
+      "cat": "geopolitical",
+      "rel": 4.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1792153800,
+      "dir": "bullish",
+      "title": "Trump's Oil Price Strategy Faces Two Major Tests This Weekend",
+      "url": "https://oilprice.com/Energy/Energy-General/Trumps-Oil-Price-Strategy-Faces-Two-Major-Tests-This-Weekend.html",
+      "cat": "opec",
+      "rel": 4.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1792159200,
+      "dir": "neutral",
+      "title": "Ukraine Defies Trump With Renewed Attacks on Russian Oil Infrastructure",
+      "url": "https://oilprice.com/Geopolitics/Europe/Ukraine-Defies-Trump-With-Renewed-Attacks-on-Russian-Oil-Infrastructure.html",
+      "cat": "geopolitical",
+      "rel": 3.8,
+      "sub": 0.28
+    },
+    {
+      "ts": 1792153800,
+      "dir": "neutral",
+      "title": "Data Centers Drive Surge in India’s Renewable Power Demand",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Data-Centers-Drive-Surge-in-Indias-Renewable-Power-Demand.html",
+      "cat": "macro",
+      "rel": 3.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1792175400,
+      "dir": "neutral",
+      "title": "U.S. Offers Another 17 Million SPR Barrels as Fuel Crisis Deepens",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/US-Offers-Another-17-Million-SPR-Barrels-as-Fuel-Crisis-Deepens.html",
+      "cat": "inventory",
+      "rel": 2.0,
+      "sub": 0.4
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 122.56 · trend sideways\n_Lugnt: inga relevanta nyheter i fönstret._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 1632,
+    "hit_pct": 53,
+    "median_pct": 0.1,
+    "horizon_h": 1.0,
+    "category": "geopolitical",
+    "direction": "bullish"
+  }
+}
