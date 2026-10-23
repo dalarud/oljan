@@ -1,0 +1,171 @@
+{
+  "updated_at": "2026-10-23T22:36:24+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 129.51,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 161,
+  "scale_factor": 1.823774,
+  "rsi": 58,
+  "trend": {
+    "5m": "up",
+    "1h": "up"
+  },
+  "bias": "bullish",
+  "regime": "inventory",
+  "supply_corroboration": 1,
+  "levels": {
+    "resistance": [
+      {
+        "label": "nivå",
+        "v": 129.88
+      }
+    ],
+    "support": [
+      {
+        "label": "rund",
+        "v": 129.5
+      },
+      {
+        "label": "nivå",
+        "v": 129.25
+      },
+      {
+        "label": "rund",
+        "v": 129.0
+      }
+    ],
+    "pivot": 129.2,
+    "pdh": 126.07,
+    "pdl": 123.52
+  },
+  "plan": [
+    "*Regim:* Lager-driven – handla reaktionen EFTER datan.",
+    "• Bas: range 129.50–129.88 in i katalysatorn",
+    "• ↑ bullish överraskning + brott 129.88 → n/a",
+    "• ↓ bearish + brott 129.50 → 129.25",
+    "🔁 Din stil: RSI 58 · fade RSI>70@129.88 & RSI<30@129.50 → mitten 129.20 · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1792776000,
+      "dir": "bullish",
+      "title": "6 Million Barrels in Two Minutes Draws CFTC Scrutiny",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/6-Million-Barrels-in-Two-Minutes-Draws-CFTC-Scrutiny.html",
+      "cat": "geopolitical",
+      "rel": 6.5,
+      "sub": 0.51
+    },
+    {
+      "ts": 1792744200,
+      "dir": "neutral",
+      "title": "UK Rules Out Winter Energy Shortages as Gas Prices Soar",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/UK-Rules-Out-Winter-Energy-Shortages-as-Gas-Prices-Soar.html",
+      "cat": "supply",
+      "rel": 4.8,
+      "sub": 0.4
+    },
+    {
+      "ts": 1792771200,
+      "dir": "bullish",
+      "title": "Space War Fears Rise as Russian Satellite Makes Dangerous Maneuver",
+      "url": "https://oilprice.com/Energy/Energy-General/Space-War-Fears-Rise-as-Russian-Satellite-Makes-Dangerous-Maneuver.html",
+      "cat": "geopolitical",
+      "rel": 4.5,
+      "sub": 0.39
+    },
+    {
+      "ts": 1792758600,
+      "dir": "neutral",
+      "title": "U.S. Partner in Venezuela Oil Deal Looks to Hike Crude Production",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/US-Partner-in-Venezuela-Oil-Deal-Looks-to-Hike-Crude-Production.html",
+      "cat": "supply",
+      "rel": 3.8,
+      "sub": 0.4
+    },
+    {
+      "ts": 1792767600,
+      "dir": "neutral",
+      "title": "U . S . Diesel at $6 . 30 a Gallon as First Russian Cargo Sets Sail for New York",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/US-Diesel-at-630-a-Gallon-as-First-Russian-Cargo-Sets-Sail-for-New-York.html",
+      "cat": "other",
+      "rel": 2.0,
+      "sub": 0.7
+    },
+    {
+      "ts": 1792792800,
+      "dir": "bullish",
+      "title": "Why Trump and Carney Haven’t Touched Energy in Their Tariff War",
+      "url": "https://oilprice.com/Energy/Energy-General/Why-Trump-and-Carney-Havent-Touched-Energy-in-Their-Tariff-War.html",
+      "cat": "geopolitical",
+      "rel": 2.5,
+      "sub": 0.41
+    },
+    {
+      "ts": 1792785986,
+      "dir": "neutral",
+      "title": "Brent Tops $116 as Middle East Risks Grow",
+      "url": "https://www.rigzone.com/news/wire/brent_tops_116_as_middle_east_risks_grow-23-oct-2026-184925-article/?rss=true",
+      "cat": "opec",
+      "rel": 3.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1792751400,
+      "dir": "bullish",
+      "title": "European Natural Gas Prices Surge to Highest Level Since 2022",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/European-Natural-Gas-Prices-Surge-to-Highest-Level-Since-2022.html",
+      "cat": "geopolitical",
+      "rel": 2.0,
+      "sub": 0.47
+    },
+    {
+      "ts": 1792747740,
+      "dir": "bullish",
+      "title": "Eni's Profits Soar 125% as Refining Boom Fuels Massive Investor Payouts",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Enis-Profits-Soar-125-as-Refining-Boom-Fuels-Massive-Investor-Payouts.html",
+      "cat": "supply",
+      "rel": 2.0,
+      "sub": 0.47
+    },
+    {
+      "ts": 1792766397,
+      "dir": "bullish",
+      "title": "DOE Advancing Constitution Pipeline to 'Strengthen Security'",
+      "url": "https://www.rigzone.com/news/doe_advancing_constitution_pipeline_to_strengthen_security-23-oct-2026-184918-article/?rss=true",
+      "cat": "geopolitical",
+      "rel": 2.0,
+      "sub": 0.46
+    },
+    {
+      "ts": 1792738800,
+      "dir": "bullish",
+      "title": "Japan Weighs Gasoline Subsidy Cuts as Energy Costs Soar",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Japan-Weighs-Gasoline-Subsidy-Cuts-as-Energy-Costs-Soar.html",
+      "cat": "geopolitical",
+      "rel": 2.5,
+      "sub": 0.35
+    },
+    {
+      "ts": 1792767600,
+      "dir": "neutral",
+      "title": "OPEC Fund allocates $250 million for railway project to strengthen Middle Corridor in Türkiye",
+      "url": "https://en.apa.az/infrastructure/opec-fund-allocates-250-million-for-railway-project-to-strengthen-middle-corridor-in-turkiye-531853",
+      "cat": "opec",
+      "rel": 3.0,
+      "sub": 0.28
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 129.51 · trend up\nNetto-bias: *STARK HAUSSE 🟢🟢* (bull 1 / bear 0, styrka +0.51)\nFrämsta drivkraft: geopolitical · 2 stories, 2 källor\nStarkast: \"Why Trump and Carney Haven’t Touched Energy in Their Tariff War\" (bullish, oilprice.com)\n_Översikt, ej finansiell rådgivning._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 1660,
+    "hit_pct": 54,
+    "median_pct": 0.1,
+    "horizon_h": 1.0,
+    "category": "geopolitical",
+    "direction": "bullish"
+  }
+}
