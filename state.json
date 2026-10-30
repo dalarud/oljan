@@ -1,0 +1,170 @@
+{
+  "updated_at": "2026-10-30T21:52:56+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 130.24,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 118,
+  "scale_factor": 1.823774,
+  "rsi": 30,
+  "trend": {
+    "5m": "down",
+    "1h": "up"
+  },
+  "bias": "bullish",
+  "regime": "mixed",
+  "supply_corroboration": 1,
+  "levels": {
+    "resistance": [
+      {
+        "label": "rund",
+        "v": 130.5
+      },
+      {
+        "label": "rund",
+        "v": 131.0
+      },
+      {
+        "label": "VWAP",
+        "v": 131.24
+      }
+    ],
+    "support": [
+      {
+        "label": "nivå",
+        "v": 130.21
+      },
+      {
+        "label": "dagslägsta",
+        "v": 130.07
+      },
+      {
+        "label": "PDH",
+        "v": 129.18
+      }
+    ],
+    "pivot": 131.24,
+    "pdh": 129.18,
+    "pdl": 126.15
+  },
+  "plan": [
+    "*Regim:* Blandat – låt nivåerna leda, mindre storlek.",
+    "• Bas: range 130.21–130.50 runt 131.24",
+    "• ↑ brott 130.50 m. volym → 131.00",
+    "• ↓ brott 130.21 m. volym → 130.07",
+    "🔁 Din stil: RSI 30 · fade RSI>70@130.50 & RSI<30@130.21 → mitten 131.24 · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1793359800,
+      "dir": "bullish",
+      "title": "Oil Markets Caught Between Iran War Risks and Emergency SPR Releases",
+      "url": "https://oilprice.com/Energy/Energy-General/Oil-Markets-Caught-Between-Iran-War-Risks-and-Emergency-SPR-Releases.html",
+      "cat": "geopolitical",
+      "rel": 10.5,
+      "sub": 0.51
+    },
+    {
+      "ts": 1793379060,
+      "dir": "bullish",
+      "title": "Oil Traders Brace for a Wild Week as Brent Approaches $120",
+      "url": "https://oilprice.com/Energy/Oil-Prices/Oil-Traders-Brace-for-a-Wild-Week-as-Brent-Approaches-120.html",
+      "cat": "geopolitical",
+      "rel": 5.5,
+      "sub": 0.4
+    },
+    {
+      "ts": 1793373220,
+      "dir": "neutral",
+      "title": "USA Crude Oil Stocks Drop Week on Week",
+      "url": "https://www.rigzone.com/news/usa_crude_oil_stocks_drop_week_on_week-30-oct-2026-184983-article/?rss=true",
+      "cat": "inventory",
+      "rel": 4.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1793368800,
+      "dir": "neutral",
+      "title": "The share of solar generation with co-located battery storage is increasing",
+      "url": "https://www.eia.gov/todayinenergy/detail.php?id=68384",
+      "cat": "inventory",
+      "rel": 2.0,
+      "sub": 0.52
+    },
+    {
+      "ts": 1793359800,
+      "dir": "neutral",
+      "title": "Israel’s Election Deadlock Opens the Door to Another Iran Offensive",
+      "url": "https://oilprice.com/Energy/Energy-General/Israels-Election-Deadlock-Opens-the-Door-to-Another-Iran-Offensive.html",
+      "cat": "geopolitical",
+      "rel": 2.5,
+      "sub": 0.4
+    },
+    {
+      "ts": 1793376000,
+      "dir": "neutral",
+      "title": "America’s LNG Boom Faces Its Biggest Test Yet",
+      "url": "https://oilprice.com/Energy/Energy-General/Americas-LNG-Boom-Faces-Its-Biggest-Test-Yet.html",
+      "cat": "supply",
+      "rel": 3.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1793359800,
+      "dir": "bullish",
+      "title": "BP Quadruples Profit to Record as War Boosts Refining and Trading",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/BP-Quadruples-Profit-to-Record-as-War-Boosts-Refining-and-Trading.html",
+      "cat": "geopolitical",
+      "rel": 2.5,
+      "sub": 0.39
+    },
+    {
+      "ts": 1793349900,
+      "dir": "bullish",
+      "title": "High Oil Prices Set to Trigger New Wave of North Sea Mergers",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/High-Oil-Prices-Set-to-Trigger-New-Wave-of-North-Sea-Mergers.html",
+      "cat": "geopolitical",
+      "rel": 2.5,
+      "sub": 0.39
+    },
+    {
+      "ts": 1793347980,
+      "dir": "bullish",
+      "title": "Oil Hits $116 Per Barrel As Hormuz Tensions Raise Stakes For Nigeria’s Economy - TVC News",
+      "url": "https://news.google.com/rss/articles/CBMiogFBVV95cUxOLVdDdG9OaFN3Sk5TZDF6LWloNXUxT2NtLTZ1Yjdndko5NjVyM2g4YWpEWnV3bVpGeVhvRVlRd1gxLWNJbC1oOGZ2eUV2ZjFZSU92dGo2OEg1d2FMS2V1aVJRem1kVkhVc2h1cFNvLXg4OUFFaGw3UjVlZ0o0M0lkWTZ2d2NhenN1VW9mcWRuMDMwdVJXOEVxUzROLWlRcHlQLWc?oc=5",
+      "cat": "geopolitical",
+      "rel": 3.0,
+      "sub": 0.27
+    },
+    {
+      "ts": 1793380197,
+      "dir": "neutral",
+      "title": "U.S. Oil, Gas Drillers Still on Hold",
+      "url": "https://oilprice.com/Energy/Energy-General/US-Oil-Gas-Drillers-Still-on-Hold.html",
+      "cat": "inventory",
+      "rel": 2.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1793368800,
+      "dir": "bullish",
+      "title": "Trump Considers Lifting Sanctions on Putin’s ‘Slush Fund’",
+      "url": "https://oilprice.com/Geopolitics/Europe/Trump-Considers-Lifting-Sanctions-on-Putins-Slush-Fund.html",
+      "cat": "geopolitical",
+      "rel": 2.0,
+      "sub": 0.28
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 130.24 · trend down\n_Lugnt: inga relevanta nyheter i fönstret._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 1681,
+    "hit_pct": 53,
+    "median_pct": 0.1,
+    "horizon_h": 1.0,
+    "category": "geopolitical",
+    "direction": "bullish"
+  }
+}
