@@ -1,0 +1,179 @@
+{
+  "updated_at": "2026-11-07T00:08:35+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 113.51,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 193,
+  "scale_factor": 1.823774,
+  "rsi": 45,
+  "trend": {
+    "5m": "sideways",
+    "1h": "sideways"
+  },
+  "bias": "bullish",
+  "regime": "supply-risk",
+  "supply_corroboration": 1,
+  "levels": {
+    "resistance": [
+      {
+        "label": "rund",
+        "v": 114.0
+      },
+      {
+        "label": "nivå",
+        "v": 114.23
+      },
+      {
+        "label": "nivå",
+        "v": 117.49
+      }
+    ],
+    "support": [
+      {
+        "label": "rund",
+        "v": 113.5
+      },
+      {
+        "label": "nivå",
+        "v": 113.26
+      },
+      {
+        "label": "rund",
+        "v": 113.0
+      }
+    ],
+    "pivot": 113.51,
+    "pdh": 114.24,
+    "pdl": 112.11
+  },
+  "plan": [
+    "*Regim:* Utbudsrisk (1 källor, VERIFIERA fysisk störning) – köp dippar med trenden.",
+    "• Bas: köp retest 113.50/113.51 → mål 114.00/114.23",
+    "• ↑ ny bekräftad störning + brott 114.24 → 115.00",
+    "• ↓ under 113.50 utan ny störning → fade mot 113.26",
+    "🔁 Din stil: RSI 45 · köp RSI<30 vid stöd 113.50 (med trend)→113.51; korta RSI>70 bara vid 114.23 litet/tajt · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1793968200,
+      "dir": "bullish",
+      "title": "Oil Prices Plunge as U.S. Elections Shake Up the Iran War",
+      "url": "https://oilprice.com/Energy/Energy-General/Oil-Prices-Plunge-as-US-Elections-Shake-Up-the-Iran-War.html",
+      "cat": "geopolitical",
+      "rel": 6.5,
+      "sub": 0.51
+    },
+    {
+      "ts": 1793971800,
+      "dir": "bullish",
+      "title": "FGE NexantECA Sees Slim Chance of U.S.-Iran Deal",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/FGE-NexantECA-Sees-Slim-Chance-of-US-Iran-Deal.html",
+      "cat": "geopolitical",
+      "rel": 7.0,
+      "sub": 0.39
+    },
+    {
+      "ts": 1793968200,
+      "dir": "bullish",
+      "title": "Asia’s Fuel Oil Market Signals Hopes of U.S.-Iran De-Escalation",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Asias-Fuel-Oil-Market-Signals-Hopes-of-US-Iran-De-Escalation.html",
+      "cat": "geopolitical",
+      "rel": 7.0,
+      "sub": 0.39
+    },
+    {
+      "ts": 1793991600,
+      "dir": "bullish",
+      "title": "Energy Reliability Is Becoming More Important Than Energy Politics",
+      "url": "https://oilprice.com/Energy/Energy-General/Energy-Reliability-Is-Becoming-More-Important-Than-Energy-Politics.html",
+      "cat": "geopolitical",
+      "rel": 5.0,
+      "sub": 0.46
+    },
+    {
+      "ts": 1793963700,
+      "dir": "bullish",
+      "title": "India’s HPCL Struggles to Secure Oil Tankers as Hormuz Risks Persist",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Indias-HPCL-Struggles-to-Secure-Oil-Tankers-as-Hormuz-Risks-Persist.html",
+      "cat": "geopolitical",
+      "rel": 5.5,
+      "sub": 0.39
+    },
+    {
+      "ts": 1793982600,
+      "dir": "bullish",
+      "title": "IEA Sees 4,800 GW of New Renewables by 2031",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/IEA-Sees-4800-GW-of-New-Renewables-by-2031.html",
+      "cat": "geopolitical",
+      "rel": 3.0,
+      "sub": 0.46
+    },
+    {
+      "ts": 1793968200,
+      "dir": "neutral",
+      "title": "A New Middle East Power Struggle Is Taking Shape in the Red Sea",
+      "url": "https://oilprice.com/Energy/Energy-General/A-New-Middle-East-Power-Struggle-Is-Taking-Shape-in-the-Red-Sea.html",
+      "cat": "geopolitical",
+      "rel": 4.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1793998800,
+      "dir": "bullish",
+      "title": "America’s Nuclear Revival Is Running Into a Fuel Supply Wall",
+      "url": "https://oilprice.com/Alternative-Energy/Nuclear-Power/Americas-Nuclear-Revival-Is-Running-Into-a-Fuel-Supply-Wall.html",
+      "cat": "supply",
+      "rel": 3.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1793986200,
+      "dir": "neutral",
+      "title": "ONGC Moves to Take Over Venezuelan Oilfields, Recover $500 Million",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/ONGC-Moves-to-Take-Over-Venezuelan-Oilfields-Recover-500-Million.html",
+      "cat": "supply",
+      "rel": 2.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1793967087,
+      "dir": "neutral",
+      "title": "ONGC Posts Highest H1 Profit",
+      "url": "https://www.rigzone.com/news/ongc_posts_highest_h1_profit-06-nov-2026-185027-article/?rss=true",
+      "cat": "supply",
+      "rel": 2.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1793999121,
+      "dir": "neutral",
+      "title": "Oil Posts Biggest Weekly Drop Since 2022",
+      "url": "https://www.rigzone.com/news/wire/oil_posts_biggest_weekly_drop_since_2022-06-nov-2026-185035-article/?rss=true",
+      "cat": "geopolitical",
+      "rel": 2.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1793984400,
+      "dir": "neutral",
+      "title": "Norway’s Oil and Gas Industry Faces a Major Decline Without New Discoveries",
+      "url": "https://oilprice.com/Energy/Energy-General/Norways-Oil-and-Gas-Industry-Faces-a-Major-Decline-Without-New-Discoveries.html",
+      "cat": "supply",
+      "rel": 2.0,
+      "sub": 0.28
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 113.51 · trend sideways\nNetto-bias: *neutral/blandat 🟡* (bull 0 / bear 0, styrka +0.00)\nFrämsta drivkraft: geopolitical · 1 stories, 1 källor\nStarkast: \"Oil Prices Slide as Hopes of US-Iran Diplomatic Breakthrough Offset Escalation Risks - Sad\" (neutral, news.google.com)\n_Översikt, ej finansiell rådgivning._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 1699,
+    "hit_pct": 53,
+    "median_pct": 0.08,
+    "horizon_h": 1.0,
+    "category": "geopolitical",
+    "direction": "bullish"
+  }
+}
