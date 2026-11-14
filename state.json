@@ -1,0 +1,170 @@
+{
+  "updated_at": "2026-11-14T01:11:55+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 111.36,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 257,
+  "scale_factor": 1.823774,
+  "rsi": 59,
+  "trend": {
+    "5m": "up",
+    "1h": "up"
+  },
+  "bias": "bullish",
+  "regime": "supply-risk",
+  "supply_corroboration": 1,
+  "levels": {
+    "resistance": [
+      {
+        "label": "rund",
+        "v": 111.5
+      },
+      {
+        "label": "nivå",
+        "v": 111.87
+      },
+      {
+        "label": "rund",
+        "v": 112.0
+      }
+    ],
+    "support": [
+      {
+        "label": "rund",
+        "v": 111.0
+      },
+      {
+        "label": "PDL",
+        "v": 110.69
+      },
+      {
+        "label": "nivå",
+        "v": 110.32
+      }
+    ],
+    "pivot": 111.36,
+    "pdh": 112.49,
+    "pdl": 110.69
+  },
+  "plan": [
+    "*Regim:* Utbudsrisk (1 källor, VERIFIERA fysisk störning) – köp dippar med trenden.",
+    "• Bas: köp retest 111.00/111.36 → mål 111.50/111.87",
+    "• ↑ ny bekräftad störning + brott 112.49 → 113.00",
+    "• ↓ under 111.00 utan ny störning → fade mot 110.69",
+    "🔁 Din stil: RSI 59 · köp RSI<30 vid stöd 111.00 (med trend)→111.36; korta RSI>70 bara vid 111.87 litet/tajt · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1794573000,
+      "dir": "bullish",
+      "title": "WTI Stages Sharp Comeback as Middle East Supply Risks Intensify",
+      "url": "https://oilprice.com/Energy/Energy-General/WTI-Stages-Sharp-Comeback-as-Middle-East-Supply-Risks-Intensify.html",
+      "cat": "geopolitical",
+      "rel": 12.5,
+      "sub": 0.54
+    },
+    {
+      "ts": 1794591000,
+      "dir": "bullish",
+      "title": "Iraq’s Oil Production Soars to 2019 High as Hormuz Flows Surge",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Iraqs-Oil-Production-Soars-to-2019-High-as-Hormuz-Flows-Surge.html",
+      "cat": "opec",
+      "rel": 11.8,
+      "sub": 0.51
+    },
+    {
+      "ts": 1794573000,
+      "dir": "bullish",
+      "title": "Why Falling Oil Prices Won't Save America From Inflation",
+      "url": "https://oilprice.com/Energy/Energy-General/Why-Falling-Oil-Prices-Wont-Save-America-From-Inflation.html",
+      "cat": "opec",
+      "rel": 6.0,
+      "sub": 0.54
+    },
+    {
+      "ts": 1794589200,
+      "dir": "bullish",
+      "title": "Brent Crude Climbs Back Above $96 as Iran Tensions Escalate",
+      "url": "https://oilprice.com/Energy/Energy-General/Brent-Crude-Climbs-Back-Above-96-as-Iran-Tensions-Escalate.html",
+      "cat": "geopolitical",
+      "rel": 7.0,
+      "sub": 0.39
+    },
+    {
+      "ts": 1794573900,
+      "dir": "bullish",
+      "title": "Iran Says Gas Tanker Hit Mine in Strait of Hormuz",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Iran-Says-Gas-Tanker-Hit-Mine-in-Strait-of-Hormuz.html",
+      "cat": "geopolitical",
+      "rel": 5.5,
+      "sub": 0.42
+    },
+    {
+      "ts": 1794569400,
+      "dir": "bullish",
+      "title": "Asian Refiners Turn Back to Gulf Oil Despite War Risks",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Asian-Refiners-Turn-Back-to-Gulf-Oil-Despite-War-Risks.html",
+      "cat": "geopolitical",
+      "rel": 5.5,
+      "sub": 0.42
+    },
+    {
+      "ts": 1794598200,
+      "dir": "bullish",
+      "title": "Trump Extends Jones Act Waiver For Another 90 Days",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Trump-Extends-Jones-Act-Waiver-For-Another-90-Days.html",
+      "cat": "geopolitical",
+      "rel": 5.0,
+      "sub": 0.39
+    },
+    {
+      "ts": 1794564900,
+      "dir": "bearish",
+      "title": "India Seeks Private Investors for $910 Million Oil Reserve",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/India-Seeks-Private-Investors-for-910-Million-Oil-Reserve.html",
+      "cat": "inventory",
+      "rel": 4.0,
+      "sub": 0.43
+    },
+    {
+      "ts": 1794610800,
+      "dir": "bullish",
+      "title": "Iran Braces for a Budget Without Oil Revenue",
+      "url": "https://oilprice.com/Energy/Energy-General/Iran-Braces-for-a-Budget-Without-Oil-Revenue.html",
+      "cat": "inventory",
+      "rel": 2.5,
+      "sub": 0.58
+    },
+    {
+      "ts": 1794593460,
+      "dir": "neutral",
+      "title": "U.S. Oil Rig Count Holds at 463 as Crude Output Hits Another Record",
+      "url": "https://oilprice.com/Energy/Crude-Oil/US-Oil-Rigs-Hold-at-463-as-Crude-Output-Hits-Another-Record.html",
+      "cat": "supply",
+      "rel": 3.8,
+      "sub": 0.28
+    },
+    {
+      "ts": 1794573000,
+      "dir": "bearish",
+      "title": "Nvidia Spy Scandal Threatens the Gulf’s AI Ambitions",
+      "url": "https://oilprice.com/Energy/Energy-General/Nvidia-Spy-Scandal-Threatens-the-Gulfs-AI-Ambitions.html",
+      "cat": "geopolitical",
+      "rel": 2.0,
+      "sub": 0.31
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 111.36 · trend up\nNetto-bias: *STARK HAUSSE 🟢🟢* (bull 1 / bear 0, styrka +1.00)\nFrämsta drivkraft: inventory · 1 stories, 1 källor\nStarkast: \"Iran Braces for a Budget Without Oil Revenue\" (bullish, oilprice.com)\n_Översikt, ej finansiell rådgivning._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 1709,
+    "hit_pct": 53,
+    "median_pct": 0.08,
+    "horizon_h": 1.0,
+    "category": "geopolitical",
+    "direction": "bullish"
+  }
+}
