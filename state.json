@@ -1,0 +1,170 @@
+{
+  "updated_at": "2026-11-20T22:05:38+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 107.64,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 70,
+  "scale_factor": 1.823774,
+  "rsi": 66,
+  "trend": {
+    "5m": "up",
+    "1h": "sideways"
+  },
+  "bias": "bullish",
+  "regime": "supply-risk",
+  "supply_corroboration": 1,
+  "levels": {
+    "resistance": [
+      {
+        "label": "dagshögsta",
+        "v": 107.8
+      },
+      {
+        "label": "rund",
+        "v": 108.0
+      },
+      {
+        "label": "PDH",
+        "v": 108.28
+      }
+    ],
+    "support": [
+      {
+        "label": "rund",
+        "v": 107.5
+      },
+      {
+        "label": "PDC",
+        "v": 107.35
+      },
+      {
+        "label": "rund",
+        "v": 107.0
+      }
+    ],
+    "pivot": 106.81,
+    "pdh": 108.28,
+    "pdl": 106.51
+  },
+  "plan": [
+    "*Regim:* Utbudsrisk (1 källor, VERIFIERA fysisk störning) – köp dippar med trenden.",
+    "• Bas: köp retest 107.50/106.81 → mål 107.80/108.00",
+    "• ↑ ny bekräftad störning + brott 108.28 → 109.00",
+    "• ↓ under 107.50 utan ny störning → fade mot 107.35",
+    "🔁 Din stil: RSI 66 · köp RSI<30 vid stöd 107.50 (med trend)→106.81; korta RSI>70 bara vid 108.00 litet/tajt · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1795199400,
+      "dir": "bullish",
+      "title": "Saudi Arabia Expands Oil Storage in Japan as Tokyo Restocks",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Saudi-Arabia-Expands-Oil-Storage-in-Japan-as-Tokyo-Restocks.html",
+      "cat": "inventory",
+      "rel": 5.0,
+      "sub": 0.58
+    },
+    {
+      "ts": 1795177800,
+      "dir": "bullish",
+      "title": "Iran Steps Up Hormuz Tanker Attacks as Oil Prices Slide",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Iran-Steps-Up-Hormuz-Tanker-Attacks-as-Oil-Prices-Slide.html",
+      "cat": "geopolitical",
+      "rel": 8.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1795181400,
+      "dir": "bullish",
+      "title": "India’s LPG Consumption Hits 8-Month High as Supply Rebounds",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Indias-LPG-Consumption-Hits-8-Month-High-as-Supply-Rebounds.html",
+      "cat": "geopolitical",
+      "rel": 5.5,
+      "sub": 0.4
+    },
+    {
+      "ts": 1795212000,
+      "dir": "bullish",
+      "title": "Argentine Energy Firms Rush to Sell Bonds Before the 2027 Election",
+      "url": "https://oilprice.com/Energy/Energy-General/Argentine-Energy-Firms-Rush-to-Sell-Bonds-Before-the-2027-Election.html",
+      "cat": "supply",
+      "rel": 2.0,
+      "sub": 0.46
+    },
+    {
+      "ts": 1795177800,
+      "dir": "bearish",
+      "title": "Trump’s Ukraine Energy Truce Unravels as Russian Missiles Hit Kyiv",
+      "url": "https://oilprice.com/Energy/Energy-General/Trumps-Ukraine-Energy-Truce-Unravels-as-Russian-Missiles-Hit-Kyiv.html",
+      "cat": "geopolitical",
+      "rel": 2.0,
+      "sub": 0.39
+    },
+    {
+      "ts": 1795174200,
+      "dir": "neutral",
+      "title": "Iran Refuses Nuclear Inspections as U.S. Military Threats Mount",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Iran-Refuses-Nuclear-Inspections-as-US-Military-Threats-Mount.html",
+      "cat": "geopolitical",
+      "rel": 2.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1795198149,
+      "dir": "neutral",
+      "title": "U.S. Oil Drillers Pick Up the Pace Just as Oil Prices Fall",
+      "url": "https://oilprice.com/Energy/Energy-General/US-Oil-Drillers-Pick-Up-the-Pace-Just-as-Oil-Prices-Fall.html",
+      "cat": "inventory",
+      "rel": 2.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1795180869,
+      "dir": "neutral",
+      "title": "Energy Transfer Seals Vaquero Acquisition",
+      "url": "https://www.rigzone.com/news/energy_transfer_seals_vaquero_acquisition-20-nov-2026-185135-article/?rss=true",
+      "cat": "supply",
+      "rel": 2.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1795179461,
+      "dir": "neutral",
+      "title": "USA EIA Sees Henry Hub NatGas Price Dropping in 2026, 2027",
+      "url": "https://www.rigzone.com/news/usa_eia_sees_henry_hub_natgas_price_dropping_in_2026_2027-20-nov-2026-185134-article/?rss=true",
+      "cat": "inventory",
+      "rel": 2.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1795177800,
+      "dir": "neutral",
+      "title": "Iraq's Oil Crackdown Sparks New Showdown With Kurdistan",
+      "url": "https://oilprice.com/Energy/Energy-General/Iraqs-Oil-Crackdown-Sparks-New-Showdown-With-Kurdistan.html",
+      "cat": "geopolitical",
+      "rel": 2.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1795172371,
+      "dir": "neutral",
+      "title": "Shenzhen Summit Fuel Pledge Offers Little Near-Term Relief",
+      "url": "https://www.rigzone.com/news/shenzhen_summit_fuel_pledge_offers_little_nearterm_relief-20-nov-2026-185132-article/?rss=true",
+      "cat": "geopolitical",
+      "rel": 2.0,
+      "sub": 0.28
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 107.64 · trend up\nNetto-bias: *STARK HAUSSE 🟢🟢* (bull 1 / bear 0, styrka +1.00)\nFrämsta drivkraft: supply · 1 stories, 1 källor\nStarkast: \"Argentine Energy Firms Rush to Sell Bonds Before the 2027 Election\" (bullish, oilprice.com)\n_Översikt, ej finansiell rådgivning._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 71,
+    "hit_pct": 54,
+    "median_pct": 0.13,
+    "horizon_h": 1.0,
+    "category": "inventory",
+    "direction": "bullish"
+  }
+}
