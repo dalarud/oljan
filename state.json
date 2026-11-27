@@ -1,0 +1,179 @@
+{
+  "updated_at": "2026-11-27T23:56:55+00:00",
+  "instrument": "Brent (UKOIL)",
+  "tv_symbol": "TVC:UKOIL",
+  "price": 107.48,
+  "price_source": "twelvedata-scaled(BNO→benchmark)",
+  "price_stale_min": 362,
+  "scale_factor": 1.823774,
+  "rsi": 43,
+  "trend": {
+    "5m": "down",
+    "1h": "up"
+  },
+  "bias": "bullish",
+  "regime": "supply-risk",
+  "supply_corroboration": 4,
+  "levels": {
+    "resistance": [
+      {
+        "label": "nivå",
+        "v": 107.49
+      },
+      {
+        "label": "rund",
+        "v": 108.0
+      },
+      {
+        "label": "PDH",
+        "v": 108.33
+      }
+    ],
+    "support": [
+      {
+        "label": "nivå",
+        "v": 107.4
+      },
+      {
+        "label": "dagslägsta",
+        "v": 107.26
+      },
+      {
+        "label": "rund",
+        "v": 107.0
+      }
+    ],
+    "pivot": 108.35,
+    "pdh": 108.33,
+    "pdl": 106.64
+  },
+  "plan": [
+    "*Regim:* Utbudsrisk (4 källor, VERIFIERA fysisk störning) – köp dippar med trenden.",
+    "• Bas: köp retest 107.40/108.35 → mål 107.49/108.00",
+    "• ↑ ny bekräftad störning + brott 108.33 → 109.00",
+    "• ↓ under 107.40 utan ny störning → fade mot 107.26",
+    "🔁 Din stil: RSI 43 · köp RSI<30 vid stöd 107.40 (med trend)→108.35; korta RSI>70 bara vid 108.00 litet/tajt · fade ALDRIG in i färsk rubrik",
+    "🔀 Vänd tesen: 🔺 bekräftad störning→köp dippar · 🔻 eldupphör→sälj studsar"
+  ],
+  "events": [
+    {
+      "ts": 1795737600,
+      "dir": "bullish",
+      "title": "Ukraine's Strike in Benghazi Threatens the Deal That Keeps Libya at Peace",
+      "url": "https://oilprice.com/Geopolitics/Africa/Ukraines-Strike-in-Benghazi-Threatens-the-Deal-That-Keeps-Libya-at-Peace.html",
+      "cat": "geopolitical",
+      "rel": 5.8,
+      "sub": 0.58
+    },
+    {
+      "ts": 1795789800,
+      "dir": "neutral",
+      "title": "U.S. Encouraged Iraq and Venezuela to Leave OPEC, Sources Say",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/US-Pushed-Iraq-and-Venezuela-to-Consider-Quitting-OPEC-Sources-Say.html",
+      "cat": "opec",
+      "rel": 10.3,
+      "sub": 0.28
+    },
+    {
+      "ts": 1795785428,
+      "dir": "neutral",
+      "title": "Brent Crude Price $96.30: OPEC+ Set to Hold Output Sunday - FinanceFeeds",
+      "url": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxQaVg5OXN1NmRNUVRzaGNBd3dTOUxpUnF1Qm9qVnpsT2NKdFU4T1hZc3JSY1UtX2xlUkN6Z3BNcEJna3hYbU1YSmZudUZlUjRxVl9iZ3g3SDlYWHViYUR2NUJBVW9uYmVrRWRYbGhQU2RNOTN2Z0UxREFiSnZxT01rTXcxUDAzUzFUa3lWZF94Vkx4MmoxV2JfQkZvQUp4b0FtTXAwb2tvMWppTWtzMDVvbW1URmFzYzFTSm13?oc=5",
+      "cat": "opec",
+      "rel": 8.3,
+      "sub": 0.16
+    },
+    {
+      "ts": 1795738500,
+      "dir": "bullish",
+      "title": "Nepal condoles death of citizen killed in Houthi attack on Saudi oil refinery , urges restraint",
+      "url": "http://www.heraldglobe.com/news/279463143/nepal-condoles-death-of-citizen-killed-in-houthi-attack-on-saudi-oil-refinery-urges-restraint",
+      "cat": "geopolitical",
+      "rel": 3.8,
+      "sub": 0.34
+    },
+    {
+      "ts": 1795790375,
+      "dir": "neutral",
+      "title": "WTI crude rises as OPEC+ meeting nears amid Mid... - Pluang",
+      "url": "https://news.google.com/rss/articles/CBMijAFBVV95cUxQdDFjXy1KQ2RUc0ZXbTVSLWQwSzExR2dCVjJESlZUSHNqRW1ueVhuVmF6NjVyaHRoU1BiekNleUJON0pHZDRxRUotV1hMN3NOWTY0WC1ya2JwWmVUOGtzNXNnbFp1UmVwNFdqWTFBc3ZqWF94R1YtMHpuNFFKdUt1aGZ6anYyWmhiVkQ5bQ?oc=5",
+      "cat": "opec",
+      "rel": 6.5,
+      "sub": 0.16
+    },
+    {
+      "ts": 1795788875,
+      "dir": "neutral",
+      "title": "Crude Oil Price Forecast: WTI and Brent Stall Ahead of OPEC+ Meeting - FXEmpire",
+      "url": "https://news.google.com/rss/articles/CBMiuAFBVV95cUxOSjJLaE9XeFE5eE1COHRsTmtELWVwNmRaNEdYY3Y1N05LdldaTHduQ3pNWU9GNW1PR1VZY1VUYklndkRmdjFLZzZ1VHk1R2VaczRwXzlhdWJWSmF1RDRVZUduYVI4Q1JZdmVJRGpWY1Y3NHNCR2kzTE9uT21rLXZVbjVQQ1NRVXd2VkgzU0kyZEhnSEgyZ2NwSm10bFdyaDBQOVhsQzJYMW5kSWwwUHRYdW5pbkZNYXJQ?oc=5",
+      "cat": "opec",
+      "rel": 6.5,
+      "sub": 0.16
+    },
+    {
+      "ts": 1795782600,
+      "dir": "bullish",
+      "title": "The Next Hormuz?",
+      "url": "https://oilprice.com/Energy/Energy-General/The-Next-Hormuz.html",
+      "cat": "geopolitical",
+      "rel": 3.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1795786200,
+      "dir": "neutral",
+      "title": "South Sudan Readies Licensing Round to Boost Oil Production",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/South-Sudan-Readies-Licensing-Round-to-Boost-Oil-Production.html",
+      "cat": "inventory",
+      "rel": 2.0,
+      "sub": 0.4
+    },
+    {
+      "ts": 1795782600,
+      "dir": "bearish",
+      "title": "Stockpiling Will Support Oil Prices in 2027, Energy Aspects Says",
+      "url": "https://oilprice.com/Latest-Energy-News/World-News/Stockpiling-Will-Support-Oil-Prices-in-2027-Energy-Aspects-Says.html",
+      "cat": "inventory",
+      "rel": 2.5,
+      "sub": 0.28
+    },
+    {
+      "ts": 1795791600,
+      "dir": "bearish",
+      "title": "Trump Urges Putin to End Aggression as Europe Braces for U.S. Military Cuts",
+      "url": "https://oilprice.com/Geopolitics/Europe/Trump-Urges-Putin-to-End-Aggression-as-Europe-Braces-for-US-Military-Cuts.html",
+      "cat": "geopolitical",
+      "rel": 2.0,
+      "sub": 0.28
+    },
+    {
+      "ts": 1795738500,
+      "dir": "neutral",
+      "title": "Russia  preparing new mass strike soon : Zelenskiy",
+      "url": "https://www.goulburnpost.com.au/story/9399142/russia-preparing-new-mass-strike-soon-zelenskiy/",
+      "cat": "geopolitical",
+      "rel": 3.5,
+      "sub": 0.16
+    },
+    {
+      "ts": 1795737600,
+      "dir": "neutral",
+      "title": "NASA Wanted a 100-Kilowatt Reactor on the Moon but Is Settling for 20",
+      "url": "https://oilprice.com/Alternative-Energy/Nuclear-Power/NASA-Wanted-a-100-Kilowatt-Reactor-on-the-Moon-but-Is-Settling-for-20.html",
+      "cat": "geopolitical",
+      "rel": 2.0,
+      "sub": 0.28
+    }
+  ],
+  "pulse": "🧭 *Marknadspuls* – senaste 3h\nBrent (UKOIL) 107.48 · trend down\n_Lugnt: inga relevanta nyheter i fönstret._",
+  "scorecard": null,
+  "alerts": [],
+  "analog": {
+    "n": 1735,
+    "hit_pct": 53,
+    "median_pct": 0.09,
+    "horizon_h": 1.0,
+    "category": "geopolitical",
+    "direction": "bullish"
+  }
+}
